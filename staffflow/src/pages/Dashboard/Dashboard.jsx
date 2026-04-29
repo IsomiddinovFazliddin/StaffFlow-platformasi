@@ -38,13 +38,13 @@ const ROLE_LABELS = {
 // ── Stat card component (uniform height) ─────────────────────────────────────
 function StatCard({ title, value, icon, bg, iconBg }) {
   return (
-    <div className={`${bg} rounded-2xl p-5 flex items-center gap-4 h-24`}>
+    <div className={`${bg} dark:!bg-slate-800 dark:!border-slate-700 rounded-2xl p-5 flex items-center gap-4 h-24`}>
       <div className={`w-12 h-12 rounded-xl ${iconBg} flex items-center justify-center text-2xl shrink-0`}>
         {icon}
       </div>
       <div>
-        <p className="text-xs text-gray-500 font-medium">{title}</p>
-        <p className="text-2xl font-bold text-gray-800 mt-0.5">{value}</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">{title}</p>
+        <p className="text-2xl font-bold text-gray-800 dark:text-slate-100 mt-0.5">{value}</p>
       </div>
     </div>
   );
@@ -271,14 +271,29 @@ function HRDashboard({ employees, attendance }) {
 
 // ── Team Lead dashboard ───────────────────────────────────────────────────────
 function TeamLeadDashboard({ tasks, employees, auth }) {
-  // Team lead o'z jamoasi — Engineering department (David Lee)
-  const myTeam      = employees.filter(e => e.department === 'Engineering');
-  const myTasks     = tasks.filter(t => t.assigneeId === auth?.employeeId);
-  const allTasks    = tasks; // team lead barcha vazifalarni ko'radi
+  // Team lead sees only employees (not other leads/managers) in their department
+  const leadEmp  = employees.find(e => e.id === auth?.employeeId);
+  const leadDept = leadEmp?.department;
 
-  const pending     = allTasks.filter(t => t.status === 'Pending').length;
-  const inProgress  = allTasks.filter(t => t.status === 'In Progress').length;
-  const done        = allTasks.filter(t => t.status === 'Done').length;
+  // Load account roles to filter out non-employees
+  const accountRoles = (() => {
+    try {
+      const accounts = JSON.parse(localStorage.getItem('sf_accounts')) || [];
+      const map = {};
+      accounts.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
+      return map;
+    } catch { return {}; }
+  })();
+
+  const myTeam = employees.filter(e => {
+    const empRole = accountRoles[e.email?.toLowerCase()] ?? 'employee';
+    return empRole === 'employee' && (!leadDept || e.department === leadDept);
+  });
+
+  const allTasks   = tasks;
+  const pending    = allTasks.filter(t => t.status === 'Pending').length;
+  const inProgress = allTasks.filter(t => t.status === 'In Progress').length;
+  const done       = allTasks.filter(t => t.status === 'Done').length;
 
   const taskPie = [
     { name: 'Kutilmoqda', value: pending },

@@ -126,13 +126,26 @@ export function AuthProvider({ children }) {
     return { user: newUser };
   };
 
+  // ── Change password ─────────────────────────────────────────────────────────
+  const changePassword = (currentPassword, newPassword) => {
+    if (!auth) return { error: 'Tizimga kiring' };
+    const accounts = loadAccounts();
+    const idx = accounts.findIndex(a => a.id === auth.id && a.password === currentPassword);
+    if (idx === -1) return { error: 'Joriy parol noto\'g\'ri' };
+    if (newPassword.length < 6) return { error: 'Yangi parol kamida 6 ta belgi bo\'lishi kerak' };
+    const updated = [...accounts];
+    updated[idx] = { ...updated[idx], password: newPassword };
+    saveAccounts(updated);
+    return { success: true };
+  };
+
   const can          = (permission) => auth?.permissions?.includes(permission) ?? false;
   const hasRole      = (...roles)   => roles.includes(auth?.role);
   const isAdminLevel = ()           => hasRole('admin', 'hr_manager', 'team_lead');
 
   return (
     <AuthContext.Provider value={{
-      auth, login, logout, register, updateAuth, createAccount,
+      auth, login, logout, register, updateAuth, createAccount, changePassword,
       can, hasRole, isAdminLevel,
     }}>
       {children}

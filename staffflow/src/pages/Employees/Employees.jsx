@@ -1,16 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, PencilLine, Trash2, AlertTriangle } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { useTranslate } from '../../hooks/useTranslate';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import EmployeeModal from './EmployeeModal';
 
+// ── Role badge ────────────────────────────────────────────────────────────────
+const ROLE_META = {
+  admin:      { label: 'Admin',      cls: 'bg-red-100 text-red-700' },
+  hr_manager: { label: 'HR Manager', cls: 'bg-blue-100 text-blue-700' },
+  team_lead:  { label: 'Team Lead',  cls: 'bg-amber-100 text-amber-700' },
+  employee:   { label: 'Xodim',      cls: 'bg-gray-100 text-gray-600' },
+};
+
+function RoleBadge({ role }) {
+  const meta = ROLE_META[role] ?? ROLE_META.employee;
+  return (
+    <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${meta.cls}`}>
+      {meta.label}
+    </span>
+  );
+}
+
+// ── Load account roles from sf_accounts ──────────────────────────────────────
+const loadAccountRoles = () => {
+  try {
+    const accounts = JSON.parse(localStorage.getItem('sf_accounts')) || [];
+    const map = {};
+    accounts.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
+    return map;
+  } catch { return {}; }
+};
+
 // ── Delete Confirm Modal ──────────────────────────────────────────────────────
 function DeleteConfirmModal({ employee, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      onClick={e => e.target === e.currentTarget && onCancel()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
@@ -26,19 +54,17 @@ function DeleteConfirmModal({ employee, onConfirm, onCancel }) {
         </p>
         <div className="flex gap-3">
           <Button variant="secondary" className="flex-1" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="danger" className="flex-1" onClick={onConfirm}>Ha, o'chirish</Button>
+          <Button variant="danger"    className="flex-1" onClick={onConfirm}>Ha, o'chirish</Button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
 function Toast({ message, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, [onDone]);
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-emerald-600 text-white text-sm font-medium px-5 py-3.5 rounded-2xl shadow-xl"
-      style={{ animation: 'slideUp 0.3s ease' }}>
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-emerald-600 text-white text-sm font-medium px-5 py-3.5 rounded-2xl shadow-xl">
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
       </svg>
@@ -51,20 +77,48 @@ function Toast({ message, onDone }) {
 export default function Employees() {
   const t = useTranslate();
   const { employees, deleteEmployee } = useApp();
+  const { auth } = useAuth();
+
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editTarget,   setEditTarget]   = useState(null);
   const [search,       setSearch]       = useState('');
-  const [deleteTarget, setDeleteTarget] = useState(null); // employee to delete
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast,        setToast]        = useState(false);
 
-  const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
-  const openEdit = (emp) => { setEditTarget(emp); setModalOpen(true); };
+  // Map email → accountRole from sf_accounts
+  const accountRoles = useMemo(() => loadAccountRoles(), [toast, modalOpen]);
 
-  const filtered = employees.filter((e) =>
+  // Enrich employees with their system role
+  const enriched = useMemo(() =>
+    employees.map(emp => ({
+      ...emp,
+      accountRole: accountRoles[emp.email?.toLowerCase()] ?? 'employee',
+    })),
+    [employees, accountRoles]
+  );
+
+  // Role-based visibility filter
+  const visibleEmployees = useMemo(() => {
+    const role = auth?.role;
+    if (role === 'admin') return enriched;
+    if (role === 'hr_manager') return enriched.filter(e => ['employee', 'team_lead'].includes(e.accountRole));
+    if (role === 'team_lead') {
+      // Team lead sees only employees in their department
+      const leadEmp = enriched.find(e => e.id === auth?.employeeId);
+      const dept = leadEmp?.department;
+      return enriched.filter(e => e.accountRole === 'employee' && (!dept || e.department === dept));
+    }
+    return enriched.filter(e => e.id === auth?.employeeId);
+  }, [enriched, auth]);
+
+  const filtered = visibleEmployees.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase()) ||
     (e.role || '').toLowerCase().includes(search.toLowerCase()) ||
     (e.department || '').toLowerCase().includes(search.toLowerCase())
   );
+
+  const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
+  const openEdit = (emp) => { setEditTarget(emp); setModalOpen(true); };
 
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return;
@@ -73,6 +127,10 @@ export default function Employees() {
     setToast(true);
   };
 
+  // Department display: only show for employees
+  const deptDisplay = (emp) =>
+    ['admin', 'hr_manager', 'team_lead'].includes(emp.accountRole) ? '—' : (emp.department || '—');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -80,35 +138,34 @@ export default function Employees() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">{t('employees.title')}</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {t('employees.subtitle', { filtered: filtered.length, total: employees.length })}
+            {t('employees.subtitle', { filtered: filtered.length, total: visibleEmployees.length })}
           </p>
         </div>
-        <Button onClick={openAdd}>{t('employees.addEmployee')}</Button>
+        {['admin', 'hr_manager'].includes(auth?.role) && (
+          <Button onClick={openAdd}>{t('employees.addEmployee')}</Button>
+        )}
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" strokeWidth={2} />
-        <input
-          type="text"
-          placeholder={t('employees.searchPlaceholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+        <input type="text" placeholder={t('employees.searchPlaceholder')}
+          value={search} onChange={e => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+          <button onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
         )}
       </div>
 
-      {/* ── Mobile card list ── */}
+      {/* ── Mobile cards ── */}
       <div className="md:hidden space-y-3">
         {filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
             <Search size={32} className="mx-auto mb-2 opacity-40" strokeWidth={1.5} />
             <p className="text-sm">{t('employees.notFound', { search })}</p>
           </div>
-        ) : filtered.map((emp) => (
+        ) : filtered.map(emp => (
           <div key={emp.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold shrink-0">
@@ -120,19 +177,23 @@ export default function Employees() {
               </div>
               <div className="ml-auto shrink-0"><Badge label={emp.status} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-              <div><span className="text-gray-400">Lavozim: </span>{emp.role}</div>
-              <div><span className="text-gray-400">Bo'lim: </span>{emp.department}</div>
-              <div><span className="text-gray-400">Maosh: </span><span className="font-medium text-gray-700">${emp.salary?.toLocaleString() ?? '—'}</span></div>
+            <div className="flex flex-wrap gap-2 items-center">
+              <RoleBadge role={emp.accountRole} />
+              {deptDisplay(emp) !== '—' && (
+                <span className="text-xs text-gray-500">{deptDisplay(emp)}</span>
+              )}
+              <span className="text-xs text-gray-500 ml-auto">${emp.salary?.toLocaleString() ?? '—'}</span>
             </div>
-            <div className="flex gap-2 pt-1">
-              <Button variant="secondary" className="flex-1 !py-1.5 text-xs" onClick={() => openEdit(emp)}>
-                <PencilLine size={13} className="inline mr-1" strokeWidth={2} />{t('employees.edit')}
-              </Button>
-              <Button variant="danger" className="flex-1 !py-1.5 text-xs" onClick={() => setDeleteTarget(emp)}>
-                <Trash2 size={13} className="inline mr-1" strokeWidth={2} />{t('employees.delete')}
-              </Button>
-            </div>
+            {['admin', 'hr_manager'].includes(auth?.role) && (
+              <div className="flex gap-2 pt-1">
+                <Button variant="secondary" className="flex-1 !py-1.5 text-xs" onClick={() => openEdit(emp)}>
+                  <PencilLine size={13} className="inline mr-1" strokeWidth={2} />{t('employees.edit')}
+                </Button>
+                <Button variant="danger" className="flex-1 !py-1.5 text-xs" onClick={() => setDeleteTarget(emp)}>
+                  <Trash2 size={13} className="inline mr-1" strokeWidth={2} />{t('employees.delete')}
+                </Button>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -143,8 +204,8 @@ export default function Employees() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {[t('employees.colEmployee'), t('employees.colRole'), t('employees.colDepartment'),
-                  t('employees.colSalary'), t('employees.colStatus'), t('employees.colActions')].map((h) => (
+                {['Xodim', 'Rol', "Bo'lim", 'Maosh', 'Holat',
+                  ['admin','hr_manager'].includes(auth?.role) ? 'Amallar' : ''].filter(Boolean).map(h => (
                   <th key={h} className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -152,12 +213,12 @@ export default function Employees() {
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                     <Search size={32} className="mx-auto mb-2 opacity-40" strokeWidth={1.5} />
                     <p className="text-sm">{t('employees.notFound', { search })}</p>
                   </td>
                 </tr>
-              ) : filtered.map((emp) => (
+              ) : filtered.map(emp => (
                 <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -170,20 +231,24 @@ export default function Employees() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{emp.role}</td>
-                  <td className="px-6 py-4 text-gray-600">{emp.department}</td>
+                  <td className="px-6 py-4"><RoleBadge role={emp.accountRole} /></td>
+                  <td className="px-6 py-4 text-gray-600">{deptDisplay(emp)}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">${emp.salary?.toLocaleString() ?? '—'}</td>
                   <td className="px-6 py-4"><Badge label={emp.status} /></td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <Button variant="secondary" className="!py-1 !px-3 text-xs" onClick={() => openEdit(emp)}>
-                        <PencilLine size={13} className="inline mr-1" strokeWidth={2} />{t('employees.edit')}
-                      </Button>
-                      <Button variant="danger" className="!py-1 !px-3 text-xs" onClick={() => setDeleteTarget(emp)}>
-                        <Trash2 size={13} className="inline mr-1" strokeWidth={2} />{t('employees.delete')}
-                      </Button>
-                    </div>
-                  </td>
+                  {['admin', 'hr_manager'].includes(auth?.role) && (
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => openEdit(emp)} title="Tahrirlash"
+                          className="p-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                          <PencilLine size={15} className="text-gray-600" strokeWidth={2} />
+                        </button>
+                        <button onClick={() => setDeleteTarget(emp)} title="O'chirish"
+                          className="p-2 rounded-lg bg-red-500 hover:bg-red-600 transition-colors">
+                          <Trash2 size={15} className="text-white" strokeWidth={2} />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -196,7 +261,6 @@ export default function Employees() {
         )}
       </div>
 
-      {/* Modals */}
       {modalOpen && <EmployeeModal onClose={() => setModalOpen(false)} employee={editTarget} />}
 
       {deleteTarget && (

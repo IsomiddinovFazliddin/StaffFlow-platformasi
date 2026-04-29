@@ -13,8 +13,8 @@ export default function SignUp() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const firstUser = isFirstUser();
-  const [form, setForm]     = useState({ name: '', email: '', password: '', confirm: '' });
-  const [error, setError]   = useState('');
+  const [form, setForm]       = useState({ name: '', email: '', password: '', confirm: '' });
+  const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
 
   const set = (k) => (e) => { setForm(f => ({ ...f, [k]: e.target.value })); setError(''); };
@@ -36,80 +36,81 @@ export default function SignUp() {
     navigate(['admin', 'hr_manager', 'team_lead'].includes(role) ? '/admin' : '/employee', { replace: true });
   };
 
-  const inp = {
-    padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '10px',
-    fontSize: '14px', outline: 'none', boxSizing: 'border-box', width: '100%',
-  };
-  const lbl = { display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' };
+  const inputCls = "w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors";
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#eef2ff,#fff,#f1f5f9)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ width: '100%', maxWidth: '420px' }}>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '56px', height: '56px', background: '#4f46e5', borderRadius: '16px', marginBottom: '16px', boxShadow: '0 4px 14px rgba(79,70,229,0.4)' }}>
-            <span style={{ fontSize: '24px' }}>⚡</span>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600 rounded-2xl mb-4 shadow-lg shadow-indigo-500/40">
+            <span className="text-2xl">⚡</span>
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: '0 0 4px' }}>StaffFlow HRM</h1>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Yangi hisob yaratish</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-1">StaffFlow HRM</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Yangi hisob yaratish</p>
         </div>
 
-        <div style={{ background: '#fff', borderRadius: '20px', boxShadow: '0 8px 32px rgba(0,0,0,0.08)', padding: '32px' }}>
-          <form onSubmit={handleSubmit}>
+        {/* Card */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl dark:shadow-slate-900/50 border border-slate-100 dark:border-slate-700 p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={lbl}>To'liq ism</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">To'liq ism</label>
               <input type="text" value={form.name} onChange={set('name')}
-                placeholder="Ismingizni kiriting" required style={inp} />
+                placeholder="Ismingizni kiriting" required className={inputCls} />
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={lbl}>Email</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Email</label>
               <input type="email" value={form.email} onChange={set('email')}
-                placeholder="email@staffflow.com" required style={inp} />
+                placeholder="email@staffflow.com" required className={inputCls} />
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={lbl}>Parol</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Parol</label>
               <input type="password" value={form.password} onChange={set('password')}
-                placeholder="Kamida 6 ta belgi" required style={inp} />
+                placeholder="Kamida 6 ta belgi" required className={inputCls} />
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={lbl}>Parolni tasdiqlang</label>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Parolni tasdiqlang</label>
               <input type="password" value={form.confirm} onChange={set('confirm')}
-                placeholder="Parolni qayta kiriting" required style={inp} />
+                placeholder="Parolni qayta kiriting" required className={inputCls} />
             </div>
 
             {error && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: '14px', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px' }}>
-                {error}
+              <div className="flex items-center gap-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm px-3.5 py-2.5 rounded-xl">
+                <span>⚠️</span><span>{error}</span>
               </div>
             )}
 
             {/* First user hint */}
-            <div style={{ background: firstUser ? '#f0fdf4' : '#eff6ff', border: `1px solid ${firstUser ? '#bbf7d0' : '#bfdbfe'}`, color: firstUser ? '#166534' : '#1e40af', fontSize: '12px', padding: '10px 14px', borderRadius: '10px', marginBottom: '16px' }}>
+            <div className={`text-xs px-3.5 py-2.5 rounded-xl border ${
+              firstUser
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400'
+            }`}>
               {firstUser
-                ? '💡 Siz birinchi foydalanuvchisiz — avtomatik <strong>Admin</strong> rolini olasiz.'
-                : 'ℹ️ Yangi hisob <strong>Xodim</strong> sifatida yaratiladi. Admin tomonidan rol o\'zgartirilishi mumkin.'}
+                ? '💡 Siz birinchi foydalanuvchisiz — avtomatik Admin rolini olasiz.'
+                : 'ℹ️ Yangi hisob Xodim sifatida yaratiladi. Admin tomonidan rol o\'zgartirilishi mumkin.'}
             </div>
 
             <button type="submit" disabled={loading}
-              style={{ width: '100%', background: '#4f46e5', color: '#fff', fontWeight: '600', fontSize: '15px', padding: '11px', borderRadius: '10px', border: 'none', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold text-sm py-2.5 rounded-xl transition-colors mt-1">
               {loading ? 'Yuklanmoqda...' : 'Ro\'yxatdan o\'tish'}
             </button>
           </form>
 
-          <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px', color: '#64748b' }}>
+          <div className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
             Hisobingiz bormi?{' '}
-            <Link to="/login" style={{ color: '#4f46e5', fontWeight: '600', textDecoration: 'none' }}>
+            <Link to="/login" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">
               Kirish
             </Link>
           </div>
         </div>
 
-        <p style={{ textAlign: 'center', fontSize: '12px', color: '#94a3b8', marginTop: '20px' }}>StaffFlow HRM v2.0</p>
+        <p className="text-center text-xs text-slate-400 dark:text-slate-500 mt-5">StaffFlow HRM v2.0</p>
       </div>
     </div>
   );

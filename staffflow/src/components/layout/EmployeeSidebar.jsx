@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { ListTodo, CalendarCheck, Banknote } from 'lucide-react';
+import { ListTodo, CalendarCheck, Banknote, AlertOctagon } from 'lucide-react';
 import Logo from '../ui/Logo';
 
 const NAV_ITEMS = [
-  { to: '/employee/my-tasks',   label: 'Mening vazifalarim', Icon: ListTodo },
-  { to: '/employee/attendance', label: 'Davomat',            Icon: CalendarCheck },
-  { to: '/employee/my-salary',  label: 'Mening maoshim',     Icon: Banknote },
+  { to: '/employee/my-tasks',     label: 'Mening vazifalarim', Icon: ListTodo },
+  { to: '/employee/attendance',   label: 'Davomat',            Icon: CalendarCheck },
+  { to: '/employee/my-salary',    label: 'Mening maoshim',     Icon: Banknote },
+  { to: '/employee/my-penalties', label: 'Jarimalarim',        Icon: AlertOctagon },
 ];
 
 function SidebarInner({ collapsed, onClose, version }) {

@@ -22,7 +22,7 @@ export default function EmployeeLayout() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-900 overflow-hidden">
       <EmployeeSidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -34,7 +34,7 @@ export default function EmployeeLayout() {
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed(c => !c)}
         />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 dark:bg-slate-900">
           <Outlet />
         </main>
       </div>

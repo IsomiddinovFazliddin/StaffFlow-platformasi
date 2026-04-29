@@ -14,6 +14,8 @@ export const KEYS = {
   VACANCIES:   'sf_vacancies',
   INTERVIEWS:  'sf_interviews',
   ACTIVITY:    'sf_activity_logs',
+  PENALTIES:   'sf_penalties',
+  PENALTY_CFG: 'sf_penalty_config',
 };
 
 /** Read a value from localStorage. Returns `null` if missing or parse fails. */

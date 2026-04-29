@@ -1,43 +1,100 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { useDepartments } from '../../context/DepartmentContext';
 import { useTranslate } from '../../hooks/useTranslate';
 import Button from '../../components/ui/Button';
 
-const ROLE_OPTIONS = [
-  { value: 'employee',   label: 'Xodim',      needsDept: true },
-  { value: 'team_lead',  label: 'Team Lead',   needsDept: true },
-  { value: 'hr_manager', label: 'HR Manager',  needsDept: false },
-  { value: 'admin',      label: 'Admin',       needsDept: false },
-];
+// ── Role options per creator role ─────────────────────────────────────────────
+const CREATABLE_ROLES = {
+  admin:      [{ value: 'hr_manager', label: 'HR Manager' }, { value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
+  hr_manager: [{ value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
+  team_lead:  [{ value: 'employee', label: 'Xodim' }],
+};
+
+// Department field behavior by selected role
+// 'hidden'   → don't show (hr_manager)
+// 'filtered' → only depts without a team_lead (team_lead role)
+// 'all'      → all departments (employee role)
+const DEPT_MODE = {
+  hr_manager: 'hidden',
+  team_lead:  'filtered',
+  employee:   'all',
+};
 
 const EMPTY_FORM = {
-  name: '', position: '', department: '', email: '',
-  salary: '', status: 'Active', password: '', accountRole: 'employee',
+  name: '', department: '', email: '',
+  salary: '', status: 'Active', password: '', accountRole: 'employee', position: '',
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const loadAccounts = () => {
+  try { return JSON.parse(localStorage.getItem('sf_accounts')) || []; }
+  catch { return []; }
 };
 
 export default function EmployeeModal({ onClose, employee }) {
   const t = useTranslate();
-  const { addEmployee, updateEmployee } = useApp();
+  const { addEmployee, updateEmployee, employees } = useApp();
   const { auth, updateAuth, createAccount } = useAuth();
   const { departments } = useDepartments();
 
-  const [form, setForm]     = useState(employee ? { ...employee, password: '', accountRole: 'employee' } : EMPTY_FORM);
+  const creatorRole = auth?.role ?? 'admin';
+  const roleOptions = CREATABLE_ROLES[creatorRole] ?? CREATABLE_ROLES.admin;
+
+  // Enrich employees with accountRole
+  const accountRoleMap = useMemo(() => {
+    const map = {};
+    loadAccounts().forEach(a => { map[a.email?.toLowerCase()] = a.role; });
+    return map;
+  }, []);
+
+  const enriched = useMemo(() =>
+    employees.map(e => ({ ...e, accountRole: accountRoleMap[e.email?.toLowerCase()] ?? 'employee' })),
+    [employees, accountRoleMap]
+  );
+
+  // Departments that already have a team_lead
+  const deptsWithLead = useMemo(() => {
+    const leadDepts = new Set(
+      enriched.filter(e => e.accountRole === 'team_lead' && e.department).map(e => e.department)
+    );
+    return leadDepts;
+  }, [enriched]);
+
+  // Init form
+  const [form, setForm] = useState(() => {
+    if (employee) {
+      const acc = loadAccounts().find(a => a.email?.toLowerCase() === employee.email?.toLowerCase());
+      return { ...employee, password: '', accountRole: acc?.role ?? 'employee' };
+    }
+    // Team lead can only add employees
+    return { ...EMPTY_FORM, accountRole: roleOptions[0]?.value ?? 'employee' };
+  });
   const [errors, setErrors] = useState({});
 
-  // Does the selected role require a department?
-  const selectedRoleMeta = ROLE_OPTIONS.find(r => r.value === (form.accountRole || 'employee'));
-  const needsDept = employee ? true : (selectedRoleMeta?.needsDept ?? true);
+  const deptMode = DEPT_MODE[form.accountRole] ?? 'all';
+  const needsDept = deptMode !== 'hidden';
+
+  // Departments shown in dropdown based on selected role
+  const availableDepts = useMemo(() => {
+    if (deptMode === 'hidden') return [];
+    if (deptMode === 'filtered') {
+      // For team_lead: show all depts, but disable those that already have a lead
+      return departments;
+    }
+    // For employee: all departments
+    return departments;
+  }, [deptMode, departments]);
 
   const validate = () => {
     const e = {};
     if (!form.name.trim())  e.name  = t('employeeModal.errorName');
-    if (!form.position?.trim()) e.position = 'Lavozim kiritilishi shart';
-    if (needsDept && !form.department) e.department = t('employeeModal.errorDepartment');
     if (!form.email.trim()) e.email = t('employeeModal.errorEmail');
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = t('employeeModal.errorEmailInvalid');
     if (!form.salary || isNaN(form.salary) || Number(form.salary) <= 0) e.salary = t('employeeModal.errorSalary');
+    if (needsDept && !form.department) e.department = t('employeeModal.errorDepartment');
+    if (form.accountRole === 'employee' && !form.position?.trim()) e.position = 'Lavozim kiritilishi shart';
     if (!employee && form.password && form.password.length < 6)
       e.password = 'Parol kamida 6 ta belgi bo\'lishi kerak';
     return e;
@@ -46,8 +103,13 @@ export default function EmployeeModal({ onClose, employee }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const cap = (v) => v.replace(/^\w/, c => c.toUpperCase());
-    setForm(f => ({ ...f, [name]: ['name', 'position'].includes(name) ? cap(value) : value }));
-    setErrors(er => ({ ...er, [name]: undefined }));
+    // Reset department when role changes
+    if (name === 'accountRole') {
+      setForm(f => ({ ...f, accountRole: value, department: '' }));
+    } else {
+      setForm(f => ({ ...f, [name]: name === 'name' ? cap(value) : value }));
+    }
+    setErrors(er => ({ ...er, [name]: undefined, department: undefined }));
   };
 
   const handleSubmit = (e) => {
@@ -55,16 +117,22 @@ export default function EmployeeModal({ onClose, employee }) {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
-    // Map 'position' → 'role' for AppContext compatibility
     const payload = {
       ...form,
-      role:       form.position,
       department: needsDept ? form.department : '',
       salary:     Number(form.salary),
     };
 
     if (employee) {
       updateEmployee(employee.id, payload);
+      try {
+        const accounts = loadAccounts().map(a =>
+          a.email?.toLowerCase() === payload.email?.toLowerCase()
+            ? { ...a, role: form.accountRole }
+            : a
+        );
+        localStorage.setItem('sf_accounts', JSON.stringify(accounts));
+      } catch { /* ignore */ }
       if (auth?.employeeId === employee.id) {
         updateAuth({ name: payload.name, email: payload.email });
       }
@@ -75,7 +143,7 @@ export default function EmployeeModal({ onClose, employee }) {
           name:       payload.name,
           email:      payload.email,
           password:   form.password,
-          role:       form.accountRole || 'employee',
+          role:       form.accountRole,
           employeeId: newEmp?.id ?? null,
         });
       }
@@ -89,7 +157,7 @@ export default function EmployeeModal({ onClose, employee }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}>
+      onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
@@ -109,52 +177,17 @@ export default function EmployeeModal({ onClose, employee }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-
-          {/* ── Tizim roli — YUQORIDA (Admin uchun, yangi xodim) ── */}
-          {!employee && auth?.role === 'admin' && (
-            <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100">
-              <label className="block text-sm font-semibold text-indigo-700 mb-2">Tizim roli</label>
-              <div className="grid grid-cols-2 gap-2">
-                {ROLE_OPTIONS.map(opt => (
-                  <label key={opt.value}
-                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors text-sm
-                      ${form.accountRole === opt.value
-                        ? 'border-indigo-400 bg-indigo-100 text-indigo-700 font-medium'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-200'}`}>
-                    <input type="radio" name="accountRole" value={opt.value}
-                      checked={form.accountRole === opt.value}
-                      onChange={handleChange} className="accent-indigo-600" />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-              {!needsDept && (
-                <p className="text-xs text-indigo-500 mt-2">
-                  ℹ️ Bu rol uchun bo'lim tanlash shart emas
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-            {/* Ism */}
-            <div>
+            {/* 1. Ism */}
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('employeeModal.fieldName')}</label>
               <input name="name" type="text" value={form.name} onChange={handleChange}
                 placeholder="Alice Johnson" className={inp('name')} />
               {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
 
-            {/* Lavozim */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lavozim</label>
-              <input name="position" type="text" value={form.position || form.role || ''} onChange={handleChange}
-                placeholder="Frontend Developer" className={inp('position')} />
-              {errors.position && <p className="text-xs text-red-500 mt-1">{errors.position}</p>}
-            </div>
-
-            {/* Email */}
+            {/* 2. Email */}
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('employeeModal.fieldEmail')}</label>
               <input name="email" type="email" value={form.email} onChange={handleChange}
@@ -162,7 +195,29 @@ export default function EmployeeModal({ onClose, employee }) {
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
 
-            {/* Maosh */}
+            {/* 3. Rol — filtered by creator role */}
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+              <select name="accountRole" value={form.accountRole} onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                {roleOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 4. Lavozim — only for employee role */}
+            {form.accountRole === 'employee' && (
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lavozim <span className="text-red-500">*</span></label>
+                <input name="position" type="text" value={form.position || ''} onChange={handleChange}
+                  placeholder="Masalan: Finance Analyst, Developer..."
+                  className={inp('position')} />
+                {errors.position && <p className="text-xs text-red-500 mt-1">{errors.position}</p>}
+              </div>
+            )}
+
+            {/* 5. Maosh */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('employeeModal.fieldSalary')}</label>
               <input name="salary" type="number" value={form.salary} onChange={handleChange}
@@ -170,7 +225,7 @@ export default function EmployeeModal({ onClose, employee }) {
               {errors.salary && <p className="text-xs text-red-500 mt-1">{errors.salary}</p>}
             </div>
 
-            {/* Holat */}
+            {/* 5. Holat */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('employeeModal.fieldStatus')}</label>
               <select name="status" value={form.status} onChange={handleChange}
@@ -180,32 +235,52 @@ export default function EmployeeModal({ onClose, employee }) {
               </select>
             </div>
 
-            {/* Bo'lim — faqat needsDept bo'lsa */}
-            {needsDept && (
+            {/* 6. Bo'lim — dynamic based on selected role */}
+            {deptMode !== 'hidden' && (
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('employeeModal.fieldDepartment')}
                   <span className="text-red-500 ml-0.5">*</span>
                 </label>
-                {departments.length === 0 ? (
-                  <div className="w-full border border-orange-200 bg-orange-50 rounded-lg px-3 py-2 text-sm text-orange-600">
-                    ⚠️ {t('employeeModal.noDepartments')}{' '}
-                    <a href="/admin/departments" className="underline font-medium">{t('employeeModal.noDepartmentsLink')}</a>
+
+                {availableDepts.length === 0 ? (
+                  <div className="w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-700">
+                    ⚠️ Hech qanday bo'lim mavjud emas.
                   </div>
-                ) : (
+                ) : deptMode === 'filtered' ? (
+                  // Team Lead: disabled options = depts WITH existing lead
                   <select name="department" value={form.department} onChange={handleChange}
                     className={inp('department')}>
-                    <option value="">{t('employeeModal.selectDepartment')}</option>
-                    {departments.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
+                    <option value="" disabled>— Bo'limni tanlang —</option>
+                    {availableDepts.map(d => {
+                      const hasLead = deptsWithLead.has(d.name);
+                      return (
+                        <option key={d.id} value={d.name} disabled={hasLead}>
+                          {d.name}{hasLead ? ' (Team Lead bor)' : ' (Bo\'sh)'}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  // Employee: disabled options = depts WITHOUT a team lead
+                  <select name="department" value={form.department} onChange={handleChange}
+                    className={inp('department')}>
+                    <option value="" disabled>— Bo'limni tanlang —</option>
+                    {availableDepts.map(d => {
+                      const hasLead = deptsWithLead.has(d.name);
+                      return (
+                        <option key={d.id} value={d.name} disabled={!hasLead}>
+                          {d.name}{!hasLead ? ' (Team Lead yo\'q)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 )}
                 {errors.department && <p className="text-xs text-red-500 mt-1">{errors.department}</p>}
               </div>
             )}
 
-            {/* Parol — faqat yangi xodim */}
+            {/* 7. Parol — yangi xodim uchun */}
             {!employee && (
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -221,8 +296,10 @@ export default function EmployeeModal({ onClose, employee }) {
 
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
             <Button variant="secondary" type="button" onClick={onClose}>{t('employeeModal.cancel')}</Button>
-            <Button type="submit" disabled={needsDept && departments.length === 0}>
-              {employee ? t('employeeModal.save') : t('employeeModal.add')}
+            <Button type="submit">
+              {employee
+                ? t('employeeModal.save')
+                : { hr_manager: "Manager qo'shish", team_lead: "Team Lead qo'shish" }[form.accountRole] ?? "Xodim qo'shish"}
             </Button>
           </div>
         </form>

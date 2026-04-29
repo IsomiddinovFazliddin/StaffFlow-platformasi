@@ -135,7 +135,7 @@ export function AppProvider({ children }) {
     const base = Number(data.salary) || 0;
     const newSal = [
       ...salaries,
-      { id: id + 2, employeeId: id, name: data.name, role: data.role,
+      { id: id + 2, employeeId: id, name: data.name, role: data.position || data.role || '',
         base, bonus: 0, deductions: 0, net: base,
         month: currentMonth(), status: 'Pending' },
     ];
@@ -150,9 +150,12 @@ export function AppProvider({ children }) {
     if (data.name) setAtt(prev => prev.map(a =>
       a.employeeId === id ? { ...a, name: data.name } : a
     ));
-    if (data.name || data.role) setSal(prev => prev.map(s =>
+    if (data.name || data.role || data.position) setSal(prev => prev.map(s =>
       s.employeeId === id
-        ? { ...s, ...(data.name && { name: data.name }), ...(data.role && { role: data.role }) }
+        ? { ...s,
+            ...(data.name     && { name: data.name }),
+            ...(data.position && { role: data.position }),
+            ...(!data.position && data.role && { role: data.role }) }
         : s
     ));
     if (data.salary !== undefined) setSal(prev => prev.map(s => {

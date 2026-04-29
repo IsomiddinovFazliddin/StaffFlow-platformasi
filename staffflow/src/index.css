@@ -1,6 +1,349 @@
 @import "tailwindcss";
 
+/* ── Dark mode via .dark class on <html> ── */
+@variant dark (&:where(.dark, .dark *));
+
+/* ── Smooth transitions ── */
+*, *::before, *::after {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* ── CSS custom properties ── */
+:root {
+  --bg-primary:       #ffffff;
+  --bg-secondary:     #f8fafc;
+  --text-primary:     #1a1a1a;
+  --text-secondary:   #6b7280;
+  --border-color:     #e5e7eb;
+  --card-bg:          #ffffff;
+  --input-bg:         #ffffff;
+  --input-border:     #d1d5db;
+  --table-header-bg:  #f9fafb;
+  --table-row-hover:  #f3f4f6;
+  --modal-bg:         #ffffff;
+  --modal-overlay:    rgba(0,0,0,0.5);
+}
+
+.dark {
+  --bg-primary:       #0f172a;
+  --bg-secondary:     #1e293b;
+  --text-primary:     #f1f5f9;
+  --text-secondary:   #94a3b8;
+  --border-color:     #334155;
+  --card-bg:          #1e293b;
+  --input-bg:         #1e293b;
+  --input-border:     #475569;
+  --table-header-bg:  #1e293b;
+  --table-row-hover:  #334155;
+  --modal-bg:         #1e293b;
+  --modal-overlay:    rgba(0,0,0,0.7);
+}
+
+/* ── Keyframes ── */
 @keyframes fadeScaleIn {
   from { opacity: 0; transform: scale(0.95) translateY(-4px); }
   to   { opacity: 1; transform: scale(1)    translateY(0);    }
+}
+
+/* ── Global dark mode overrides ── */
+
+/* Cards / white backgrounds */
+.dark .bg-white          { background-color: #1e293b !important; }
+.dark .bg-gray-50        { background-color: #0f172a !important; }
+.dark .bg-gray-100       { background-color: #1e293b !important; }
+
+/* Text */
+.dark .text-gray-800,
+.dark .text-gray-900     { color: #f1f5f9 !important; }
+.dark .text-gray-700     { color: #e2e8f0 !important; }
+.dark .text-gray-600     { color: #cbd5e1 !important; }
+.dark .text-gray-500     { color: #94a3b8 !important; }
+.dark .text-gray-400     { color: #64748b !important; }
+
+/* Borders */
+.dark .border-gray-100,
+.dark .border-gray-200   { border-color: #334155 !important; }
+
+/* Inputs & selects */
+.dark input:not([type="radio"]):not([type="checkbox"]),
+.dark select,
+.dark textarea {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+.dark input::placeholder,
+.dark textarea::placeholder { color: #64748b !important; }
+
+/* Table */
+.dark thead,
+.dark .bg-gray-50.border-b { background-color: #1e293b !important; }
+.dark tbody tr:hover        { background-color: #334155 !important; }
+.dark .divide-gray-50 > *  { border-color: #334155 !important; }
+
+/* Modals */
+.dark .shadow-2xl.bg-white,
+.dark .rounded-2xl.bg-white { background-color: #1e293b !important; }
+
+/* Dropdowns */
+.dark .shadow-xl.bg-white   { background-color: #1e293b !important; }
+
+/* Hover states */
+.dark .hover\:bg-gray-50:hover  { background-color: #334155 !important; }
+.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
+
+/* Recharts */
+.dark .recharts-cartesian-axis-tick text { fill: #94a3b8 !important; }
+.dark .recharts-cartesian-grid line      { stroke: #334155 !important; }
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── Stat cards with colored backgrounds ── */
+.dark .bg-emerald-50  { background-color: rgba(16,185,129,0.15) !important; }
+.dark .bg-red-50      { background-color: rgba(239,68,68,0.15)  !important; }
+.dark .bg-yellow-50   { background-color: rgba(234,179,8,0.15)  !important; }
+.dark .bg-blue-50     { background-color: rgba(59,130,246,0.15) !important; }
+.dark .bg-indigo-50   { background-color: rgba(99,102,241,0.15) !important; }
+.dark .bg-purple-50   { background-color: rgba(168,85,247,0.15) !important; }
+.dark .bg-cyan-50     { background-color: rgba(6,182,212,0.15)  !important; }
+.dark .bg-orange-50   { background-color: rgba(249,115,22,0.15) !important; }
+.dark .bg-pink-50     { background-color: rgba(236,72,153,0.15) !important; }
+.dark .bg-green-50    { background-color: rgba(34,197,94,0.15)  !important; }
+.dark .bg-amber-50    { background-color: rgba(245,158,11,0.15) !important; }
+.dark .bg-violet-50   { background-color: rgba(139,92,246,0.15) !important; }
+
+/* Keep colored text readable in dark mode */
+.dark .text-emerald-600, .dark .text-emerald-700 { color: #34d399 !important; }
+.dark .text-red-600,     .dark .text-red-700     { color: #f87171 !important; }
+.dark .text-yellow-600,  .dark .text-yellow-700  { color: #fbbf24 !important; }
+.dark .text-blue-600,    .dark .text-blue-700    { color: #60a5fa !important; }
+.dark .text-indigo-600,  .dark .text-indigo-700  { color: #818cf8 !important; }
+.dark .text-orange-600                           { color: #fb923c !important; }
+.dark .text-amber-600,   .dark .text-amber-700   { color: #fbbf24 !important; }
+.dark .text-cyan-600,    .dark .text-cyan-700    { color: #22d3ee !important; }
+.dark .text-pink-600,    .dark .text-pink-700    { color: #f472b6 !important; }
+.dark .text-violet-600,  .dark .text-violet-700  { color: #a78bfa !important; }
+
+/* ── Settings page cards ── */
+.dark .border-indigo-200 { border-color: #4f46e5 !important; }
+.dark .border-blue-200   { border-color: #3b82f6 !important; }
+
+/* ── Notification toast ── */
+.dark [class*="bg-emerald-600"] { background-color: #065f46 !important; }
+
+/* ── Attendance toggle switch inactive ── */
+.dark .bg-gray-300 { background-color: #475569 !important; }
+
+/* ── Profile page hardcoded colors ── */
+.dark [style*="background-color: rgb(244, 244, 245)"],
+.dark [style*="background-color:#F4F4F5"] {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+.dark [style*="color: rgb(24, 24, 27)"],
+.dark [style*="color:#18181B"] { color: #f1f5f9 !important; }
+.dark [style*="color: rgb(113, 113, 122)"],
+.dark [style*="color:#71717A"]  { color: #64748b !important; }
+
+/* ── Sidebar active item visibility ── */
+.dark .bg-indigo-700 { background-color: #4338ca !important; }
+.dark .bg-blue-700   { background-color: #1d4ed8 !important; }
+.dark .bg-cyan-700   { background-color: #0e7490 !important; }
+
+/* ── Modal overlays ── */
+.dark .bg-black\/50  { background-color: rgba(0,0,0,0.7) !important; }
+
+/* ── Recharts tooltip ── */
+.dark .recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* ── Login page ── */
+.dark body { background-color: #0f172a; }
+
+/* ══════════════════════════════════════════════════════
+   COMPREHENSIVE DARK MODE — all remaining components
+   ══════════════════════════════════════════════════════ */
+
+/* ── Rounded cards / panels ── */
+.dark .rounded-xl,
+.dark .rounded-2xl {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+/* ── Exceptions: keep colored backgrounds on sidebars ── */
+.dark [class*="bg-indigo-9"],
+.dark [class*="bg-blue-9"],
+.dark [class*="bg-emerald-9"],
+.dark [class*="bg-cyan-9"],
+.dark [class*="bg-purple-9"] {
+  background-color: inherit !important;
+}
+
+/* ── Stat card icon boxes ── */
+.dark .bg-blue-100   { background-color: rgba(59,130,246,0.2)  !important; }
+.dark .bg-yellow-100 { background-color: rgba(234,179,8,0.2)   !important; }
+.dark .bg-green-100  { background-color: rgba(34,197,94,0.2)   !important; }
+.dark .bg-purple-100 { background-color: rgba(168,85,247,0.2)  !important; }
+.dark .bg-red-100    { background-color: rgba(239,68,68,0.2)   !important; }
+.dark .bg-orange-100 { background-color: rgba(249,115,22,0.2)  !important; }
+.dark .bg-cyan-100   { background-color: rgba(6,182,212,0.2)   !important; }
+.dark .bg-indigo-100 { background-color: rgba(99,102,241,0.2)  !important; }
+.dark .bg-pink-100   { background-color: rgba(236,72,153,0.2)  !important; }
+.dark .bg-emerald-100{ background-color: rgba(16,185,129,0.2)  !important; }
+.dark .bg-amber-100  { background-color: rgba(245,158,11,0.2)  !important; }
+.dark .bg-teal-100   { background-color: rgba(20,184,166,0.2)  !important; }
+
+/* ── Badge / status chips ── */
+.dark .bg-emerald-100.text-emerald-700,
+.dark .bg-green-100.text-green-700 {
+  background-color: rgba(16,185,129,0.2) !important;
+  color: #34d399 !important;
+}
+.dark .bg-red-100.text-red-600,
+.dark .bg-red-100.text-red-700 {
+  background-color: rgba(239,68,68,0.2) !important;
+  color: #f87171 !important;
+}
+.dark .bg-yellow-100.text-yellow-700,
+.dark .bg-amber-100.text-amber-700 {
+  background-color: rgba(234,179,8,0.2) !important;
+  color: #fbbf24 !important;
+}
+.dark .bg-blue-100.text-blue-700 {
+  background-color: rgba(59,130,246,0.2) !important;
+  color: #60a5fa !important;
+}
+.dark .bg-indigo-100.text-indigo-700 {
+  background-color: rgba(99,102,241,0.2) !important;
+  color: #818cf8 !important;
+}
+.dark .bg-cyan-100.text-cyan-700 {
+  background-color: rgba(6,182,212,0.2) !important;
+  color: #22d3ee !important;
+}
+.dark .bg-orange-100.text-orange-600 {
+  background-color: rgba(249,115,22,0.2) !important;
+  color: #fb923c !important;
+}
+.dark .bg-purple-100.text-purple-700 {
+  background-color: rgba(168,85,247,0.2) !important;
+  color: #c084fc !important;
+}
+.dark .bg-pink-100.text-pink-700 {
+  background-color: rgba(236,72,153,0.2) !important;
+  color: #f472b6 !important;
+}
+
+/* ── "Faol" / "Active" green badge specifically ── */
+.dark span[class*="bg-emerald"],
+.dark span[class*="bg-green"] {
+  background-color: rgba(16,185,129,0.2) !important;
+  color: #34d399 !important;
+}
+
+/* ── Dividers ── */
+.dark .divide-gray-50 > * + * { border-color: #334155 !important; }
+.dark .border-b.border-gray-50,
+.dark .border-t.border-gray-50 { border-color: #334155 !important; }
+
+/* ── Shadow cards ── */
+.dark .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important; }
+
+/* ── Page headings ── */
+.dark h1, .dark h2, .dark h3 { color: #f1f5f9; }
+.dark p { color: #94a3b8; }
+
+/* ── Buttons secondary ── */
+.dark .border.border-gray-200:not(input):not(select):not(textarea) {
+  border-color: #475569 !important;
+  color: #cbd5e1 !important;
+}
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover { background-color: #334155 !important; }
+
+/* ── Chart containers ── */
+.dark .recharts-wrapper,
+.dark .recharts-surface { background: transparent !important; }
+.dark .recharts-legend-item-text { color: #94a3b8 !important; }
+.dark .recharts-cartesian-axis-tick-value { fill: #94a3b8 !important; }
+.dark .recharts-cartesian-grid-horizontal line,
+.dark .recharts-cartesian-grid-vertical line { stroke: #334155 !important; }
+
+/* ── Dropdown menus ── */
+.dark .absolute.bg-white,
+.dark .absolute.rounded-2xl.bg-white {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+/* ── Profile avatar circles ── */
+.dark .bg-indigo-100.text-indigo-700 {
+  background-color: rgba(99,102,241,0.25) !important;
+  color: #818cf8 !important;
+}
+
+/* ── Ring colors ── */
+.dark .ring-indigo-100  { --tw-ring-color: rgba(99,102,241,0.3); }
+.dark .ring-emerald-100 { --tw-ring-color: rgba(16,185,129,0.3); }
+.dark .ring-blue-100    { --tw-ring-color: rgba(59,130,246,0.3); }
+.dark .ring-cyan-100    { --tw-ring-color: rgba(6,182,212,0.3); }
+
+/* ── Scrollbar in dark mode ── */
+.dark ::-webkit-scrollbar { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track { background: #1e293b; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+/* ── Profile page hardcoded label colors ── */
+.dark label[class*="text-\\[\\#18181B\\]"],
+.dark .text-\[\#18181B\] { color: #f1f5f9 !important; }
+.dark .text-\[\#71717A\] { color: #94a3b8 !important; }
+
+/* Profile form inputs with hardcoded bg */
+.dark .bg-\[\#F4F4F5\] {
+  background-color: #334155 !important;
+  color: #94a3b8 !important;
+  border-color: #475569 !important;
+}
+
+/* Profile page all labels */
+.dark label { color: #e2e8f0 !important; }
+
+/* Profile section headings */
+.dark .text-sm.font-semibold.text-gray-800 { color: #f1f5f9 !important; }
+.dark .text-xs.font-semibold.text-gray-500 { color: #94a3b8 !important; }
+
+/* Profile activity icons bg */
+.dark .bg-indigo-50.text-indigo-600,
+.dark .bg-blue-50.text-blue-600,
+.dark .bg-emerald-50.text-emerald-600,
+.dark .bg-cyan-50.text-cyan-600 {
+  background-color: rgba(99,102,241,0.15) !important;
+}
+
+/* Profile border separators */
+.dark .border-t.border-gray-100,
+.dark .border-b.border-gray-100 { border-color: #334155 !important; }
+
+/* Profile "A'zo bo'lgan sana" text */
+.dark .text-xs.text-gray-400 { color: #64748b !important; }
+
+/* ── Login/Register button dark mode fix ── */
+.dark button[type="submit"] {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+.dark button[type="submit"]:hover {
+  background-color: #4338ca !important;
+}
+.dark button[type="submit"]:disabled {
+  opacity: 0.6 !important;
 }

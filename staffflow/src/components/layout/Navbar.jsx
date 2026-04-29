@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { Moon, Sun } from 'lucide-react';
 import { useUser } from '../../context/UserContext';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { useNotifications } from '../../context/NotificationContext';
+import { useTheme } from '../../context/ThemeContext';
 import NotificationDropdown from './NotificationDropdown';
 import ProfileDropdown from './ProfileDropdown';
 import Logo from '../ui/Logo';
@@ -28,6 +30,7 @@ export default function Navbar({ onMenuClick, collapsed, onToggleCollapse }) {
   const { auth } = useAuth();
   const { employees } = useApp();
   const { unreadCount } = useNotifications();
+  const { dark, toggle: toggleTheme } = useTheme();
   const [open, setOpen] = useState(PANELS.none);
 
   const toggle   = (panel) => setOpen(prev => prev === panel ? PANELS.none : panel);
@@ -41,7 +44,7 @@ export default function Navbar({ onMenuClick, collapsed, onToggleCollapse }) {
   const avatarBg = ROLE_COLORS[auth?.role] ?? 'bg-indigo-600';
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 shrink-0 sticky top-0 z-30">
+    <header className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between px-4 md:px-6 shrink-0 sticky top-0 z-30">
       <div className="flex items-center gap-2">
 
         {/* ── Desktop collapse toggle (lg+) ── */}
@@ -79,6 +82,13 @@ export default function Navbar({ onMenuClick, collapsed, onToggleCollapse }) {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Dark mode toggle */}
+        <button onClick={toggleTheme}
+          className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors"
+          title={dark ? 'Yorug\' rejim' : 'Qorong\'u rejim'}>
+          {dark ? <Sun size={18} strokeWidth={2} /> : <Moon size={18} strokeWidth={2} />}
+        </button>
+
         {/* Notification bell */}
         <div className="relative">
           <button
@@ -113,8 +123,8 @@ export default function Navbar({ onMenuClick, collapsed, onToggleCollapse }) {
                 : initials}
             </div>
             <div className="hidden sm:block text-left">
-              <p className="text-sm font-medium text-gray-800 leading-tight">{displayName}</p>
-              <p className="text-xs text-gray-400 leading-tight">{ROLE_LABELS[auth?.role] ?? auth?.role}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-slate-100 leading-tight">{displayName}</p>
+              <p className="text-xs text-gray-400 dark:text-slate-400 leading-tight">{ROLE_LABELS[auth?.role] ?? auth?.role}</p>
             </div>
             <svg xmlns="http://www.w3.org/2000/svg"
               className={`w-4 h-4 text-gray-400 hidden sm:block transition-transform duration-200 ${open === PANELS.profile ? 'rotate-180' : ''}`}
