@@ -11,7 +11,7 @@ const ROLE_LABELS = {
   employee:   { label: 'Xodim',      cls: 'bg-emerald-100 text-emerald-700' },
 };
 
-const ADMIN_ROLES = ['admin', 'hr_manager', 'team_lead'];
+const ADMIN_ROLES = ['admin', 'admin', 'team_lead'];
 
 export default function ProfileDropdown({ open, onClose }) {
   const navigate = useNavigate();

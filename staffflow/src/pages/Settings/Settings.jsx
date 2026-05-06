@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useTranslate } from '../../hooks/useTranslate';
-import { useLang } from '../../context/LangContext';
 import { useUser } from '../../context/UserContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -106,13 +105,7 @@ function PasswordForm() {
 
 export default function Settings() {
   const t = useTranslate();
-  const { lang, switchLang } = useLang();
   const { settings, updateSettings } = useUser();
-
-  const langs = [
-    { code: 'uz', flag: '🇺🇿', label: t('settings.langUz') },
-    { code: 'en', flag: '🇬🇧', label: t('settings.langEn') },
-  ];
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -120,53 +113,6 @@ export default function Settings() {
         <h1 className="text-2xl font-bold text-gray-800">{t('settings.title')}</h1>
         <p className="text-gray-500 text-sm mt-1">{t('settings.subtitle')}</p>
       </div>
-
-      {/* Language */}
-      <SectionCard icon="🌍" title={t('settings.sectionLang')} desc={t('settings.sectionLangDesc')}>
-        <div className="grid grid-cols-2 gap-3">
-          {langs.map(({ code, flag, label }) => (
-            <button
-              key={code}
-              onClick={() => switchLang(code)}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-all duration-200
-                ${lang === code
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-indigo-300 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
-            >
-              <span className="text-2xl">{flag}</span>
-              <span>{label}</span>
-              {lang === code && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs">✓</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </SectionCard>
-
-      {/* Theme */}
-      <SectionCard icon="🎨" title={t('settings.sectionTheme')} desc={t('settings.sectionThemeDesc')}>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { value: 'light', icon: '☀️', label: t('settings.themeLight') },
-            { value: 'dark',  icon: '🌙', label: t('settings.themeDark') },
-          ].map(({ value, icon, label }) => (
-            <button
-              key={value}
-              onClick={() => updateSettings({ theme: value })}
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-all duration-200
-                ${settings.theme === value
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-indigo-300 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'}`}
-            >
-              <span className="text-2xl">{icon}</span>
-              <span>{label}</span>
-              {settings.theme === value && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs">✓</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </SectionCard>
 
       {/* Notifications */}
       <SectionCard icon="🔔" title={t('settings.sectionNotif')} desc={t('settings.sectionNotifDesc')}>

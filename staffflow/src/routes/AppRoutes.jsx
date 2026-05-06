@@ -21,6 +21,9 @@ import Vacancies         from '../pages/Vacancies/Vacancies';
 import Interviews        from '../pages/Interviews/Interviews';
 import Penalties         from '../pages/Penalties/Penalties';
 import Analytics         from '../pages/Analytics/Analytics';
+import Hisobotlar        from '../pages/Hisobotlar/index';
+import PendingApprovals  from '../pages/PendingApprovals/PendingApprovals';
+import PendingApproval   from '../pages/Login/PendingApproval';
 
 // Employee layout + pages
 import EmployeeLayout    from '../components/layout/EmployeeLayout';
@@ -28,8 +31,9 @@ import EmployeeDashboard from '../pages/Employee/EmployeeDashboard';
 import MyTasks           from '../pages/Employee/MyTasks';
 import MySalary          from '../pages/Employee/MySalary';
 import MyPenalties       from '../pages/Employee/MyPenalties';
+import MyTeam            from '../pages/Employee/MyTeam';
 
-const ADMIN_ROLES = ['admin', 'hr_manager', 'team_lead'];
+const ADMIN_ROLES = ['admin', 'admin', 'team_lead'];
 
 function RootRedirect() {
   const { auth } = useAuth();
@@ -42,6 +46,7 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/login"        element={<Login />} />
       <Route path="/register"     element={<SignUp />} />
+      <Route path="/pending"      element={<PendingApproval />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="/"             element={<RootRedirect />} />
 
@@ -59,6 +64,8 @@ export default function AppRoutes() {
           <Route path="interviews"    element={<Interviews />} />
           <Route path="penalties"     element={<Penalties />} />
           <Route path="analytics"     element={<Analytics />} />
+          <Route path="hisobotlar"    element={<Hisobotlar />} />
+          <Route path="pending"       element={<PendingApprovals />} />
           <Route path="settings"      element={<Settings />} />
           <Route path="profile"       element={<Profile />} />
         </Route>
@@ -71,6 +78,7 @@ export default function AppRoutes() {
           <Route path="my-tasks"      element={<MyTasks />} />
           <Route path="attendance"    element={<Attendance />} />
           <Route path="my-salary"     element={<MySalary />} />
+          <Route path="my-team"       element={<MyTeam />} />
           <Route path="my-penalties"  element={<MyPenalties />} />
           <Route path="settings"      element={<Settings />} />
           <Route path="profile"       element={<Profile />} />

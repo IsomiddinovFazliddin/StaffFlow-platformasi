@@ -29,11 +29,11 @@ export const ALL_NOTIFICATIONS = [
   { id: 206, roles: ['admin'], type: NOTIF_TYPE.INFO,    title: 'Faoliyat ogohlantirishi',         message: '5 ta yangi amal qayd etildi.',                            read: true,  createdAt: mins(240) },
 
   // ── HR Manager ───────────────────────────────────────────────────────────
-  { id: 301, roles: ['hr_manager'], type: NOTIF_TYPE.SUCCESS, title: 'Yangi xodim qo\'shildi',    message: 'Frank Brown Marketing bo\'limiga qo\'shildi.',                   read: false, createdAt: mins(3) },
-  { id: 302, roles: ['hr_manager'], type: NOTIF_TYPE.WARNING, title: 'Kech kelish aniqlandi',     message: 'Bob Smith bugun 09:45 da keldi (15 daqiqa kech).',               read: false, createdAt: mins(15) },
-  { id: 303, roles: ['hr_manager'], type: NOTIF_TYPE.WARNING, title: 'Davomat muammosi',          message: 'Carol White va David Lee bugun kelmadi.',                        read: true,  createdAt: mins(45) },
-  { id: 304, roles: ['hr_manager'], type: NOTIF_TYPE.SUCCESS, title: 'Maosh tasdiqlandi',         message: 'Mart 2026 ish haqi to\'lovlari tasdiqlandi.',                    read: true,  createdAt: mins(90) },
-  { id: 305, roles: ['hr_manager'], type: NOTIF_TYPE.INFO,    title: 'Intervyu eslatmasi',        message: 'Bugun soat 14:00 da Jasur Toshmatov bilan intervyu.',            read: false, createdAt: mins(10) },
+  { id: 301, roles: ['admin'], type: NOTIF_TYPE.SUCCESS, title: 'Yangi xodim qo\'shildi',    message: 'Frank Brown Marketing bo\'limiga qo\'shildi.',                   read: false, createdAt: mins(3) },
+  { id: 302, roles: ['admin'], type: NOTIF_TYPE.WARNING, title: 'Kech kelish aniqlandi',     message: 'Bob Smith bugun 09:45 da keldi (15 daqiqa kech).',               read: false, createdAt: mins(15) },
+  { id: 303, roles: ['admin'], type: NOTIF_TYPE.WARNING, title: 'Davomat muammosi',          message: 'Carol White va David Lee bugun kelmadi.',                        read: true,  createdAt: mins(45) },
+  { id: 304, roles: ['admin'], type: NOTIF_TYPE.SUCCESS, title: 'Maosh tasdiqlandi',         message: 'Mart 2026 ish haqi to\'lovlari tasdiqlandi.',                    read: true,  createdAt: mins(90) },
+  { id: 305, roles: ['admin'], type: NOTIF_TYPE.INFO,    title: 'Intervyu eslatmasi',        message: 'Bugun soat 14:00 da Jasur Toshmatov bilan intervyu.',            read: false, createdAt: mins(10) },
 
   // ── Team Lead ────────────────────────────────────────────────────────────
   { id: 401, roles: ['team_lead'], type: NOTIF_TYPE.INFO,    title: 'Yangi vazifa tayinlandi',    message: '"API integration" vazifasi David Lee ga tayinlandi.',            read: false, createdAt: mins(8) },

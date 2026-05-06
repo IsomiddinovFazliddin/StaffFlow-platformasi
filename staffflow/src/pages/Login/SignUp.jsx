@@ -32,8 +32,13 @@ export default function SignUp() {
 
     if (result.error) return setError(result.error);
 
+    if (result.pending) {
+      navigate('/pending', { replace: true });
+      return;
+    }
+
     const role = result.user.role;
-    navigate(['admin', 'hr_manager', 'team_lead'].includes(role) ? '/admin' : '/employee', { replace: true });
+    navigate(['admin', 'team_lead'].includes(role) ? '/admin' : '/employee', { replace: true });
   };
 
   const inputCls = "w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-colors";

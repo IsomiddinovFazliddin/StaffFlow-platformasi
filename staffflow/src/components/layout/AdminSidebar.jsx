@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Briefcase, ListTodo,
-  CalendarCheck, Banknote, Activity, Settings,
-  Megaphone, Mic, AlertOctagon, BarChart2,
+  CalendarCheck, Banknote, Activity,
+  AlertOctagon, BarChart2, FileText, UserCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../utils/mockData';
@@ -18,17 +18,15 @@ const ALL_NAV = [
   { to: '/admin/activity',    label: 'Faoliyat',          Icon: Activity,        permission: PERMISSIONS.VIEW_REPORTS },
   { to: '/admin/penalties',   label: 'Jarima tizimi',     Icon: AlertOctagon,    permission: PERMISSIONS.MANAGE_SETTINGS },
   { to: '/admin/analytics',   label: 'Analitika',         Icon: BarChart2,        permission: PERMISSIONS.VIEW_REPORTS },
-  { to: '/admin/settings',    label: 'Tizim sozlamalari', Icon: Settings,        permission: PERMISSIONS.MANAGE_SETTINGS },
+  { to: '/admin/hisobotlar',  label: 'Hisobotlar',        Icon: FileText,         permission: PERMISSIONS.VIEW_REPORTS },
+  { to: '/admin/pending',     label: 'Tasdiqlash',        Icon: UserCheck,        permission: PERMISSIONS.MANAGE_SETTINGS },
 ];
 
 const ROLE_LABEL_OVERRIDES = {
   team_lead: { '/admin/employees': 'Mening jamoam' },
 };
 
-const HR_EXTRA = [
-  { to: '/admin/vacancies',  label: 'Vakansiyalar', Icon: Megaphone, permission: PERMISSIONS.VIEW_EMPLOYEES },
-  { to: '/admin/interviews', label: 'Intervyular',  Icon: Mic,       permission: PERMISSIONS.VIEW_EMPLOYEES },
-];
+const HR_EXTRA = [];
 
 const THEME = {
   admin:      { bg: 'bg-indigo-900', border: 'border-indigo-800', active: 'bg-indigo-700', hover: 'hover:bg-indigo-800', text: 'text-indigo-200', footer: 'text-indigo-400' },
@@ -36,14 +34,23 @@ const THEME = {
   team_lead:  { bg: 'bg-cyan-900',   border: 'border-cyan-800',   active: 'bg-cyan-700',   hover: 'hover:bg-cyan-800',   text: 'text-cyan-200',   footer: 'text-cyan-400' },
 };
 
-function SidebarInner({ theme, navItems, collapsed, onClose, version }) {
+const THEME_COLORS = {
+  admin:      '#1e1b4b',
+  hr_manager: '#1e3a5f',
+  team_lead:  '#083344',
+};
+
+function SidebarInner({ theme, navItems, collapsed, onClose, version, role, pendingCount }) {
   const linkClass = ({ isActive }) =>
     `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
     ${collapsed ? 'justify-center px-0' : ''}
     ${isActive ? `${theme.active} text-white` : `${theme.text} ${theme.hover} hover:text-white`}`;
 
   return (
-    <div className={`h-full flex flex-col ${theme.bg} text-white overflow-hidden`}>
+    <div
+      className={`h-full flex flex-col ${theme.bg} text-white overflow-hidden`}
+      style={{ backgroundColor: THEME_COLORS[role] ?? THEME_COLORS.admin }}
+    >
       {/* Logo */}
       <div className={`h-16 shrink-0 border-b ${theme.border} flex items-center
         ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
@@ -60,7 +67,22 @@ function SidebarInner({ theme, navItems, collapsed, onClose, version }) {
               strokeWidth={1.75}
               className="shrink-0 transition-transform duration-200 group-hover:scale-110"
             />
-            {!collapsed && <span className="truncate">{label}</span>}
+            {!collapsed && (
+              <span className="flex-1 flex items-center justify-between truncate">
+                <span className="truncate">{label}</span>
+                {to === '/admin/pending' && pendingCount > 0 && (
+                  <span
+                    className="ml-2 bg-red-500 text-white font-bold rounded-full flex items-center justify-center shrink-0"
+                    style={{ minWidth: '20px', height: '20px', fontSize: '10px', padding: '0 4px' }}
+                  >
+                    {pendingCount > 9 ? '9+' : pendingCount}
+                  </span>
+                )}
+              </span>
+            )}
+            {collapsed && to === '/admin/pending' && pendingCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            )}
           </NavLink>
         ))}
       </nav>
@@ -76,7 +98,7 @@ function SidebarInner({ theme, navItems, collapsed, onClose, version }) {
 }
 
 export default function AdminSidebar({ open, onClose, collapsed }) {
-  const { auth, can } = useAuth();
+  const { auth, can, pendingCount } = useAuth();
 
   const role      = auth?.role ?? 'admin';
   const theme     = THEME[role] ?? THEME.admin;
@@ -86,7 +108,7 @@ export default function AdminSidebar({ open, onClose, collapsed }) {
     .filter(item => can(item.permission))
     .map(item => ({ ...item, label: overrides[item.to] ?? item.label }));
 
-  if (role === 'hr_manager') {
+  if (role === 'admin') {
     const empIdx = navItems.findIndex(n => n.to === '/admin/employees');
     if (empIdx !== -1) {
       navItems = [
@@ -97,7 +119,7 @@ export default function AdminSidebar({ open, onClose, collapsed }) {
     }
   }
 
-  const props = { theme, navItems, version: 'v1.0.0' };
+  const props = { theme, navItems, version: 'v1.0.0', role, pendingCount };
 
   return (
     <>
@@ -122,6 +144,7 @@ export default function AdminSidebar({ open, onClose, collapsed }) {
         />
         <aside
           className={`absolute top-0 left-0 h-full w-64 z-50
+            ${theme.bg}
             transition-transform duration-300 ease-in-out
             ${open ? 'translate-x-0' : '-translate-x-full'}`}
         >

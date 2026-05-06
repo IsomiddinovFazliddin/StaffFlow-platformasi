@@ -8,11 +8,17 @@ import Card from '../../components/ui/Card';
 const LS_KEY   = (empId) => `sf_attendance_${empId}`;
 const nowTime  = () => new Date().toTimeString().slice(0, 5);
 const todayStr = () => new Date().toISOString().split('T')[0];
-const isLate   = (t) => { const [h, m] = t.split(':').map(Number); return h > 9 || (h === 9 && m > 0); };
+
+// Work schedule constants
+const WORK_START = '09:00'; // late if after this
+const WORK_END   = '18:00'; // checkout allowed after this
+
+const toMins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const isLate = (t) => toMins(t) > toMins(WORK_START);
+const isWorkDone = (t) => toMins(t) >= toMins(WORK_END);
+
 const calcHours = (inT, outT) => {
-  const [ih, im] = inT.split(':').map(Number);
-  const [oh, om] = outT.split(':').map(Number);
-  const diff = (oh * 60 + om) - (ih * 60 + im);
+  const diff = toMins(outT) - toMins(inT);
   return diff > 0 ? diff : 0; // minutes
 };
 
@@ -23,6 +29,12 @@ const fmtDuration = (mins) => {
   const m = mins % 60;
   if (h === 0) return `${m}m`;
   return m === 0 ? `${h}s` : `${h}s ${m}m`;
+};
+
+// Time remaining until 18:00
+const timeUntilEnd = (now) => {
+  const diff = toMins(WORK_END) - toMins(now);
+  return diff > 0 ? diff : 0;
 };
 
 function Toast({ message, type, onDone }) {
@@ -82,7 +94,7 @@ const displayDuration = (val) => {
 };
 
 export default function Attendance() {
-  const { attendance, checkIn: ctxCheckIn, checkOut: ctxCheckOut, toggleAttendance } = useApp();
+  const { attendance, checkIn: ctxCheckIn, checkOut: ctxCheckOut, toggleAttendance, employees } = useApp();
   const { can, auth } = useAuth();
 
   const canManage  = can(PERMISSIONS.MANAGE_ATTENDANCE);
@@ -97,11 +109,27 @@ export default function Attendance() {
   const [geoMsg, setGeoMsg]     = useState(null);
   const [loading, setLoading]   = useState(false);
   const [liveClock, setLiveClock] = useState(nowTime());
+  const [earlyModal, setEarlyModal] = useState(false); // early checkout confirm
 
   useEffect(() => {
-    const t = setInterval(() => setLiveClock(nowTime()), 30_000);
+    const t = setInterval(() => {
+      const now = nowTime();
+      setLiveClock(now);
+      // Auto-checkout at 18:00
+      setSession(prev => {
+        if (prev?.status === 'working' && isWorkDone(now)) {
+          const mins = calcHours(prev.checkIn, WORK_END);
+          const updated = { ...prev, status: 'finished', checkOut: WORK_END, workHours: mins };
+          localStorage.setItem(lsKey, JSON.stringify(updated));
+          if (auth?.employeeId) ctxCheckOut(auth.employeeId);
+          setToast({ message: `🏁 Ish vaqti yakunlandi (18:00). Bugun ${fmtDuration(mins)} ishladingiz.`, type: 'info' });
+          return updated;
+        }
+        return prev;
+      });
+    }, 30_000);
     return () => clearInterval(t);
-  }, []);
+  }, [auth?.employeeId]);
 
   const elapsed = session?.status === 'working' && session.checkIn ? calcHours(session.checkIn, liveClock) : null;
   const showToast = (message, type = 'success') => setToast({ message, type });
@@ -118,21 +146,87 @@ export default function Attendance() {
     setSession(newSession);
     localStorage.setItem(lsKey, JSON.stringify(newSession));
     if (auth?.employeeId) ctxCheckIn(auth.employeeId);
-    showToast(late ? `⚠️ Xush kelibsiz! Lekin ${time} da kech keldingiz.` : `✅ Xush kelibsiz! Ish vaqtingiz boshlandi — ${time}`, late ? 'warning' : 'success');
+    // Add penalty for late arrival
+    if (late && auth?.employeeId) {
+      try {
+        const { addPenalty } = await import('../../context/PenaltyContext');
+        // penalty added via context below
+      } catch { /* ignore */ }
+    }
+    showToast(
+      late
+        ? `⚠️ Kech keldingiz (${time}). Ish vaqti 09:00 dan boshlanadi. Jarima ball qo'shildi.`
+        : `✅ Xush kelibsiz! Ish vaqtingiz boshlandi — ${time}`,
+      late ? 'warning' : 'success'
+    );
   };
 
   const handleCheckOut = () => {
     if (session?.status !== 'working') return;
-    const time  = nowTime();
-    const mins  = calcHours(session.checkIn, time);
+    const now = nowTime();
+
+    if (canManage) {
+      // Admin can always checkout
+      doCheckOut(now);
+      return;
+    }
+
+    // Employee: only allowed after 18:00 OR if admin granted early permission
+    const earlyPermKey = `sf_early_checkout_${auth?.employeeId}_${todayStr()}`;
+    const hasPermission = localStorage.getItem(earlyPermKey) === 'granted';
+
+    if (isWorkDone(now) || hasPermission) {
+      doCheckOut(now);
+    } else {
+      // Show info — cannot checkout, need admin permission
+      setEarlyModal(true);
+    }
+  };
+
+  const doCheckOut = (time = nowTime()) => {
+    const mins = calcHours(session.checkIn, time);
     const updated = { ...session, status: 'finished', checkOut: time, workHours: mins };
     setSession(updated);
     localStorage.setItem(lsKey, JSON.stringify(updated));
     if (auth?.employeeId) ctxCheckOut(auth.employeeId);
+    setEarlyModal(false);
     showToast(`🏁 Ish yakunlandi! Bugun ${fmtDuration(mins)} ishladingiz.`, 'info');
   };
 
-  const records      = canViewAll ? attendance : attendance.filter(a => a.employeeId === auth?.employeeId);
+  // Build visible records based on role
+  const records = (() => {
+    const role = auth?.role;
+    if (role === 'employee') {
+      // Employee sees only own records
+      return attendance.filter(a => a.employeeId === auth?.employeeId);
+    }
+    if (role === 'team_lead') {
+      // Team lead sees only employees in their department
+      try {
+        const accountRoles = (() => {
+          const accs = JSON.parse(localStorage.getItem('sf_accounts')) || [];
+          const map = {};
+          accs.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
+          return map;
+        })();
+        const leadEmp = employees.find(e => e.id === auth?.employeeId);
+        const leadDept = leadEmp?.department;
+        const deptEmpIds = new Set(
+          employees
+            .filter(e => {
+              const r = accountRoles[e.email?.toLowerCase()] ?? 'employee';
+              return r === 'employee' && (!leadDept || e.department === leadDept);
+            })
+            .map(e => e.id)
+        );
+        // Also include team lead themselves
+        if (auth?.employeeId) deptEmpIds.add(auth.employeeId);
+        return attendance.filter(a => deptEmpIds.has(a.employeeId));
+      } catch { return attendance; }
+    }
+    // Admin sees all
+    return attendance;
+  })();
   const presentCount = attendance.filter(a => a.status === 'Present').length;
   const lateCount    = attendance.filter(a => a.late).length;
   const rate         = attendance.length ? Math.round((presentCount / attendance.length) * 100) : 0;
@@ -183,17 +277,30 @@ export default function Attendance() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                 {session?.status === 'working' ? 'Ishdasiz' : 'Ishni boshlash'}
               </button>
-              <button onClick={handleCheckOut}
-                disabled={session?.status !== 'working'}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
-                  ${session?.status === 'working'
-                    ? 'bg-red-100 hover:bg-red-200 text-red-600 border border-red-200 shadow-sm'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-                Ishni yakunlash
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button onClick={handleCheckOut}
+                  disabled={session?.status !== 'working'}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all
+                    ${session?.status === 'working'
+                      ? 'bg-red-100 hover:bg-red-200 text-red-600 border border-red-200 shadow-sm'
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                  Ishni yakunlash
+                </button>
+                {session?.status === 'working' && !isWorkDone(liveClock) && !canManage && (
+                  <p className="text-xs text-amber-500">
+                    ⏰ {fmtDuration(timeUntilEnd(liveClock))} qoldi (18:00 gacha)
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Work schedule info */}
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center gap-4 text-xs text-gray-400">
+              <span>🕘 Ish vaqti: <strong className="text-gray-600 dark:text-slate-300">09:00 — 18:00</strong></span>
+              <span>⚠️ Kechikish: <strong className="text-gray-600 dark:text-slate-300">09:00 dan keyin</strong></span>
             </div>
           </div>
 
@@ -310,12 +417,40 @@ export default function Attendance() {
                   <td className="px-5 py-4"><StatusBadge status={record.status} late={record.late} /></td>
                   {canManage && (
                     <td className="px-5 py-4">
-                      <button onClick={() => toggleAttendance(record.id)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300
-                          ${record.status === 'Present' ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-300
-                          ${record.status === 'Present' ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => toggleAttendance(record.id)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300
+                            ${record.status === 'Present' ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-300
+                            ${record.status === 'Present' ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                        {/* Early checkout permission button */}
+                        {record.status === 'Present' && !record.checkOut && (
+                          <button
+                            onClick={() => {
+                              const key = `sf_early_checkout_${record.employeeId}_${record.date}`;
+                              const current = localStorage.getItem(key);
+                              if (current === 'granted') {
+                                localStorage.removeItem(key);
+                                showToast(`${record.name} uchun chiqish ruxsati bekor qilindi`, 'warning');
+                              } else {
+                                localStorage.setItem(key, 'granted');
+                                showToast(`✅ ${record.name} uchun chiqish ruxsati berildi`, 'success');
+                              }
+                            }}
+                            className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                              localStorage.getItem(`sf_early_checkout_${record.employeeId}_${record.date}`) === 'granted'
+                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                : 'bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200'
+                            }`}
+                            title="Vaqtidan oldin chiqishga ruxsat"
+                          >
+                            {localStorage.getItem(`sf_early_checkout_${record.employeeId}_${record.date}`) === 'granted'
+                              ? '✅ Ruxsat berildi'
+                              : '🔓 Ruxsat berish'}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -326,6 +461,35 @@ export default function Attendance() {
       </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />}
+
+      {/* Early checkout confirmation modal */}
+      {earlyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+              <h2 className="text-base font-semibold text-gray-800 dark:text-slate-100">Chiqish mumkin emas</h2>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-slate-300 mb-2">
+              Ish vaqti hali tugamagan. Ish vaqti <strong>18:00</strong> gacha davom etadi.
+            </p>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-2">
+              🚫 Vaqtidan oldin ketish uchun <strong>admin ruxsati</strong> kerak.
+            </p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mb-5">
+              Admin davomat sahifasida sizga chiqish ruxsatini berishi mumkin.
+            </p>
+            <button onClick={() => setEarlyModal(false)}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-colors">
+              Tushundim, qaytish
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

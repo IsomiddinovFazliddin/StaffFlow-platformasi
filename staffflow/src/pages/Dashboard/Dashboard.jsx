@@ -498,7 +498,7 @@ export default function Dashboard() {
         />
       )}
 
-      {role === 'hr_manager' && (
+      {role === 'admin' && (
         <HRDashboard employees={employees} attendance={attendance} />
       )}
 

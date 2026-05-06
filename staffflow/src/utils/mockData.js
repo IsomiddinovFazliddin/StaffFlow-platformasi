@@ -10,53 +10,38 @@ export const departments = [
 
 // ─── Roles & Permissions ─────────────────────────────────────────────────────
 export const ROLES = {
-  ADMIN:      'admin',
-  HR_MANAGER: 'hr_manager',
-  TEAM_LEAD:  'team_lead',
-  EMPLOYEE:   'employee',
+  ADMIN:     'admin',
+  TEAM_LEAD: 'team_lead',
+  EMPLOYEE:  'employee',
 };
 
 export const PERMISSIONS = {
-  // Employee module
-  VIEW_EMPLOYEES:   'view_employees',
-  ADD_EMPLOYEE:     'add_employee',
-  EDIT_EMPLOYEE:    'edit_employee',
-  DELETE_EMPLOYEE:  'delete_employee',
-  // Department module
-  VIEW_DEPARTMENTS: 'view_departments',
-  MANAGE_DEPARTMENTS: 'manage_departments',
-  // Task module
-  VIEW_ALL_TASKS:   'view_all_tasks',
-  VIEW_OWN_TASKS:   'view_own_tasks',
-  CREATE_TASK:      'create_task',
-  ASSIGN_TASK:      'assign_task',
-  UPDATE_TASK:      'update_task',
-  DELETE_TASK:      'delete_task',
-  // Attendance
+  VIEW_EMPLOYEES:      'view_employees',
+  ADD_EMPLOYEE:        'add_employee',
+  EDIT_EMPLOYEE:       'edit_employee',
+  DELETE_EMPLOYEE:     'delete_employee',
+  VIEW_DEPARTMENTS:    'view_departments',
+  MANAGE_DEPARTMENTS:  'manage_departments',
+  VIEW_ALL_TASKS:      'view_all_tasks',
+  VIEW_OWN_TASKS:      'view_own_tasks',
+  CREATE_TASK:         'create_task',
+  ASSIGN_TASK:         'assign_task',
+  UPDATE_TASK:         'update_task',
+  DELETE_TASK:         'delete_task',
   VIEW_ALL_ATTENDANCE: 'view_all_attendance',
   VIEW_OWN_ATTENDANCE: 'view_own_attendance',
   MANAGE_ATTENDANCE:   'manage_attendance',
   CHECKIN:             'checkin',
-  // Salary
-  VIEW_ALL_SALARY:  'view_all_salary',
-  VIEW_OWN_SALARY:  'view_own_salary',
-  MANAGE_SALARY:    'manage_salary',
-  // System
-  VIEW_DASHBOARD:   'view_dashboard',
-  MANAGE_SETTINGS:  'manage_settings',
-  VIEW_REPORTS:     'view_reports',
+  VIEW_ALL_SALARY:     'view_all_salary',
+  VIEW_OWN_SALARY:     'view_own_salary',
+  MANAGE_SALARY:       'manage_salary',
+  VIEW_DASHBOARD:      'view_dashboard',
+  MANAGE_SETTINGS:     'manage_settings',
+  VIEW_REPORTS:        'view_reports',
 };
 
 export const ROLE_PERMISSIONS = {
   [ROLES.ADMIN]: Object.values(PERMISSIONS),
-  [ROLES.HR_MANAGER]: [
-    PERMISSIONS.VIEW_EMPLOYEES, PERMISSIONS.ADD_EMPLOYEE, PERMISSIONS.EDIT_EMPLOYEE,
-    PERMISSIONS.VIEW_DEPARTMENTS,
-    PERMISSIONS.VIEW_ALL_TASKS, PERMISSIONS.VIEW_OWN_TASKS, PERMISSIONS.UPDATE_TASK,
-    PERMISSIONS.VIEW_ALL_ATTENDANCE, PERMISSIONS.MANAGE_ATTENDANCE,
-    PERMISSIONS.VIEW_ALL_SALARY, PERMISSIONS.MANAGE_SALARY,
-    PERMISSIONS.VIEW_DASHBOARD, PERMISSIONS.VIEW_REPORTS,
-  ],
   [ROLES.TEAM_LEAD]: [
     PERMISSIONS.VIEW_EMPLOYEES,
     PERMISSIONS.VIEW_DEPARTMENTS,
@@ -74,11 +59,11 @@ export const ROLE_PERMISSIONS = {
 
 // ─── Mock Users (for AuthContext) ────────────────────────────────────────────
 export const MOCK_USERS = [
-  { id: 1, name: 'Admin User',     email: 'admin@staffflow.com',      password: 'admin123',    role: ROLES.ADMIN,       employeeId: null },
-  { id: 2, name: 'Carol White',    email: 'carol@staffflow.com',      password: 'hr123',       role: ROLES.HR_MANAGER,  employeeId: 3 },
-  { id: 3, name: 'David Lee',      email: 'david@staffflow.com',      password: 'lead123',     role: ROLES.TEAM_LEAD,   employeeId: 4 },
-  { id: 4, name: 'Alice Johnson',  email: 'alice@staffflow.com',      password: 'emp123',      role: ROLES.EMPLOYEE,    employeeId: 1 },
-  { id: 5, name: 'Ali Valiyev',    email: 'employee@staffflow.com',   password: 'employee123', role: ROLES.EMPLOYEE,    employeeId: 2 },
+  { id: 1, name: 'Admin User',    email: 'admin@staffflow.com', password: 'admin123',  role: ROLES.ADMIN,     employeeId: null },
+  { id: 2, name: 'Carol White',   email: 'carol@staffflow.com', password: 'hr123',     role: ROLES.ADMIN,     employeeId: 3 },
+  { id: 3, name: 'David Lee',     email: 'david@staffflow.com', password: 'lead123',   role: ROLES.TEAM_LEAD, employeeId: 4 },
+  { id: 4, name: 'Alice Johnson', email: 'alice@staffflow.com', password: 'emp123',    role: ROLES.EMPLOYEE,  employeeId: 1 },
+  { id: 5, name: 'Ali Valiyev',   email: 'employee@staffflow.com', password: 'employee123', role: ROLES.EMPLOYEE, employeeId: 2 },
 ];
 
 // ─── Employees ───────────────────────────────────────────────────────────────

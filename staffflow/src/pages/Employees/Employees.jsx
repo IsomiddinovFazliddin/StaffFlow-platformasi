@@ -100,10 +100,8 @@ export default function Employees() {
   // Role-based visibility filter
   const visibleEmployees = useMemo(() => {
     const role = auth?.role;
-    if (role === 'admin') return enriched;
-    if (role === 'hr_manager') return enriched.filter(e => ['employee', 'team_lead'].includes(e.accountRole));
+    if (role === 'admin') return enriched; // Admin sees ALL employees
     if (role === 'team_lead') {
-      // Team lead sees only employees in their department
       const leadEmp = enriched.find(e => e.id === auth?.employeeId);
       const dept = leadEmp?.department;
       return enriched.filter(e => e.accountRole === 'employee' && (!dept || e.department === dept));
@@ -129,7 +127,7 @@ export default function Employees() {
 
   // Department display: only show for employees
   const deptDisplay = (emp) =>
-    ['admin', 'hr_manager', 'team_lead'].includes(emp.accountRole) ? '—' : (emp.department || '—');
+    ['admin', 'admin', 'team_lead'].includes(emp.accountRole) ? '—' : (emp.department || '—');
 
   return (
     <div className="space-y-6">
@@ -141,7 +139,7 @@ export default function Employees() {
             {t('employees.subtitle', { filtered: filtered.length, total: visibleEmployees.length })}
           </p>
         </div>
-        {['admin', 'hr_manager'].includes(auth?.role) && (
+        {['admin', 'admin'].includes(auth?.role) && (
           <Button onClick={openAdd}>{t('employees.addEmployee')}</Button>
         )}
       </div>
@@ -184,7 +182,7 @@ export default function Employees() {
               )}
               <span className="text-xs text-gray-500 ml-auto">${emp.salary?.toLocaleString() ?? '—'}</span>
             </div>
-            {['admin', 'hr_manager'].includes(auth?.role) && (
+            {['admin', 'admin'].includes(auth?.role) && (
               <div className="flex gap-2 pt-1">
                 <Button variant="secondary" className="flex-1 !py-1.5 text-xs" onClick={() => openEdit(emp)}>
                   <PencilLine size={13} className="inline mr-1" strokeWidth={2} />{t('employees.edit')}
@@ -205,7 +203,7 @@ export default function Employees() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Xodim', 'Rol', "Bo'lim", 'Maosh', 'Holat',
-                  ['admin','hr_manager'].includes(auth?.role) ? 'Amallar' : ''].filter(Boolean).map(h => (
+                  ['admin','admin'].includes(auth?.role) ? 'Amallar' : ''].filter(Boolean).map(h => (
                   <th key={h} className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -235,7 +233,7 @@ export default function Employees() {
                   <td className="px-6 py-4 text-gray-600">{deptDisplay(emp)}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">${emp.salary?.toLocaleString() ?? '—'}</td>
                   <td className="px-6 py-4"><Badge label={emp.status} /></td>
-                  {['admin', 'hr_manager'].includes(auth?.role) && (
+                  {['admin', 'admin'].includes(auth?.role) && (
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => openEdit(emp)} title="Tahrirlash"

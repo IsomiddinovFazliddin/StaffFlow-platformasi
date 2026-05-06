@@ -13,7 +13,7 @@ import { clearAllStorage } from './utils/storage';
 
 // ── One-time migration: clear stale localStorage so employees/attendance/salary
 //    are rebuilt in sync. Bump the version string to force a re-clear.
-const SCHEMA_VERSION = 'v4';
+const SCHEMA_VERSION = 'v5';
 if (localStorage.getItem('sf_schema') !== SCHEMA_VERSION) {
   clearAllStorage();
   localStorage.setItem('sf_schema', SCHEMA_VERSION);

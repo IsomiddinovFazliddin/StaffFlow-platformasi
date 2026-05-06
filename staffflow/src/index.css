@@ -170,13 +170,18 @@
    COMPREHENSIVE DARK MODE — all remaining components
    ══════════════════════════════════════════════════════ */
 
-/* ── Rounded cards / panels ── */
+/* ── Rounded cards / panels — exclude sidebars ── */
 .dark .rounded-xl,
 .dark .rounded-2xl {
   background-color: #1e293b;
   border-color: #334155;
   color: #f1f5f9;
 }
+/* Sidebar bg overrides — keep original colors */
+.dark .bg-indigo-900 { background-color: #1e1b4b !important; }
+.dark .bg-blue-900   { background-color: #1e3a5f !important; }
+.dark .bg-cyan-900   { background-color: #083344 !important; }
+.dark .bg-emerald-900{ background-color: #064e3b !important; }
 
 /* ── Exceptions: keep colored backgrounds on sidebars ── */
 .dark [class*="bg-indigo-9"],

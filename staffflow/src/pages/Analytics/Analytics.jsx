@@ -157,7 +157,7 @@ export default function Analytics() {
 
   const role = auth?.role;
   const isAdmin   = role === 'admin';
-  const isHR      = role === 'hr_manager';
+  const isHR      = role === 'admin';
   const isLead    = role === 'team_lead';
   const isEmp     = role === 'employee';
 

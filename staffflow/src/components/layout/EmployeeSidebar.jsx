@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { ListTodo, CalendarCheck, Banknote, AlertOctagon } from 'lucide-react';
+import { ListTodo, CalendarCheck, Banknote, AlertOctagon, Users } from 'lucide-react';
 import Logo from '../ui/Logo';
 
 const NAV_ITEMS = [
   { to: '/employee/my-tasks',     label: 'Mening vazifalarim', Icon: ListTodo },
   { to: '/employee/attendance',   label: 'Davomat',            Icon: CalendarCheck },
   { to: '/employee/my-salary',    label: 'Mening maoshim',     Icon: Banknote },
+  { to: '/employee/my-team',      label: 'Mening jamoam',      Icon: Users },
   { to: '/employee/my-penalties', label: 'Jarimalarim',        Icon: AlertOctagon },
 ];
 
@@ -16,7 +17,7 @@ function SidebarInner({ collapsed, onClose, version }) {
     ${isActive ? 'bg-emerald-700 text-white' : 'text-emerald-100 hover:bg-emerald-800 hover:text-white'}`;
 
   return (
-    <div className="h-full flex flex-col bg-emerald-900 text-white overflow-hidden">
+    <div className="h-full flex flex-col bg-emerald-900 text-white overflow-hidden" style={{ backgroundColor: '#064e3b' }}>
       {/* Logo */}
       <div className={`h-16 shrink-0 border-b border-emerald-800 flex items-center
         ${collapsed ? 'justify-center px-2' : 'px-5'}`}>
@@ -72,6 +73,7 @@ export default function EmployeeSidebar({ open, onClose, collapsed }) {
         />
         <aside
           className={`absolute top-0 left-0 h-full w-64 z-50
+            bg-emerald-900
             transition-transform duration-300 ease-in-out
             ${open ? 'translate-x-0' : '-translate-x-full'}`}
         >

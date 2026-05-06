@@ -140,7 +140,7 @@ export default function Profile() {
   const meta     = ROLE_META[role] ?? ROLE_META.employee;
   const c        = THEME[meta.theme];
   const isAdmin  = role === 'admin';
-  const isHR     = role === 'hr_manager';
+  const isHR     = role === 'admin';
   const isEmp    = role === 'employee';
 
   // Pull live employee record from AppContext (updates when Admin edits)

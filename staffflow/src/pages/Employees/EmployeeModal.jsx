@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button';
 
 // ── Role options per creator role ─────────────────────────────────────────────
 const CREATABLE_ROLES = {
-  admin:      [{ value: 'hr_manager', label: 'HR Manager' }, { value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
+  admin:      [{ value: 'admin', label: 'HR Manager' }, { value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
   hr_manager: [{ value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
   team_lead:  [{ value: 'employee', label: 'Xodim' }],
 };

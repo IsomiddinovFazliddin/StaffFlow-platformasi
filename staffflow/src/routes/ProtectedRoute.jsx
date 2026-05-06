@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const ADMIN_ROLES = ['admin', 'hr_manager', 'team_lead'];
+const ADMIN_ROLES = ['admin', 'admin', 'team_lead'];
 const ACCOUNTS_KEY = 'sf_accounts';
 
 // Check if current session account still exists in sf_accounts

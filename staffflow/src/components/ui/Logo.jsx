@@ -34,7 +34,7 @@ export default function Logo({ collapsed = false, variant = 'dark', className = 
       {/* ── Wordmark ── */}
       {!collapsed && (
         <div
-          className="flex items-center overflow-hidden whitespace-nowrap"
+          className="hidden sm:flex items-center overflow-hidden whitespace-nowrap"
           style={{ fontFamily: "'Inter', sans-serif" }}
         >
           <span
@@ -45,8 +45,8 @@ export default function Logo({ collapsed = false, variant = 'dark', className = 
           <span
             className={`text-[19px] font-bold tracking-tight ml-0.5 
               ${isLight 
-                ? 'text-cyan-600' // Navbar (oq fon) uchun to'yingan moviy
-                : 'text-cyan-300' // Sidebar (to'q fon) uchun yorqin akvamarin
+                ? 'text-cyan-600'
+                : 'text-cyan-300'
               }`}
           >
             Flow

@@ -186,7 +186,7 @@ export default function Departments() {
   const [confirmId, setConfirmId] = useState(null);
 
   const role = auth?.role;
-  const canManage = role === 'admin' || role === 'hr_manager';
+  const canManage = role === 'admin' || role === 'admin';
 
   const accountRoles = useMemo(() => loadAccountRoles(), []);
 

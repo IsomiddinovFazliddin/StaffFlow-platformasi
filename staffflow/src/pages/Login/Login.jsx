@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
-const ADMIN_ROLES = ['admin', 'hr_manager', 'team_lead'];
+const ADMIN_ROLES = ['admin', 'admin', 'team_lead'];
 
 const ROLE_REDIRECT = {
   admin:      '/admin',
