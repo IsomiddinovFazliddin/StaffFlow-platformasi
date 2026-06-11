@@ -9,13 +9,13 @@ import { PenaltyProvider } from './context/PenaltyContext';
 import { ThemeProvider } from './context/ThemeContext';
 import NotificationToast from './components/ui/NotificationToast';
 import AppRoutes from './routes/AppRoutes';
-import { clearAllStorage } from './utils/storage';
 
-// ── One-time migration: clear stale localStorage so employees/attendance/salary
-//    are rebuilt in sync. Bump the version string to force a re-clear.
-const SCHEMA_VERSION = 'v5';
+// ── One-time migration: clear stale localStorage
+const SCHEMA_VERSION = 'v7-clean';
 if (localStorage.getItem('sf_schema') !== SCHEMA_VERSION) {
-  clearAllStorage();
+  const token = localStorage.getItem('sf_auth');
+  localStorage.clear();
+  if (token) localStorage.setItem('sf_auth', token);
   localStorage.setItem('sf_schema', SCHEMA_VERSION);
 }
 

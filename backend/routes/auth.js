@@ -11,8 +11,9 @@ const sign = (id) => jwt.sign({ id }, process.env.JWT_SECRET, {
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
-    const { full_name, email, password } = req.body;
-    if (!full_name || !email || !password)
+    const { full_name, name, email, password } = req.body;
+    const displayName = full_name || name;
+    if (!displayName || !email || !password)
       return res.status(400).json({ message: 'Barcha maydonlar to\'ldirilishi shart' });
 
     const exists = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
@@ -21,24 +22,30 @@ router.post('/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 12);
 
-    // Check if first user — auto-approve as admin
-    const count = await db.query('SELECT COUNT(*) FROM users');
-    const isFirst = parseInt(count.rows[0].count) === 0;
+    // Birinchi foydalanuvchi → admin, qolganlar → pending employee
+    const { rows: countRows } = await db.query('SELECT COUNT(*) AS cnt FROM users');
+    const isFirst = parseInt(countRows[0]?.cnt || 0) === 0;
 
-    const { rows } = await db.query(
-      `INSERT INTO users (full_name, email, password_hash, role, status, is_approved)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, full_name, email, role, status`,
+    await db.query(
+      `INSERT INTO users (full_name, email, password_hash, role, status, is_approved, provider)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
       [
-        full_name.trim(), email.toLowerCase(), hash,
+        displayName.trim(),
+        email.toLowerCase(),
+        hash,
         isFirst ? 'admin' : 'employee',
         isFirst ? 'active' : 'pending',
-        isFirst,
+        isFirst ? 1 : 0,
+        'email',
       ]
     );
 
     if (isFirst) {
+      // Birinchi foydalanuvchi darhol login qila oladi
+      const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
       const token = sign(rows[0].id);
-      return res.status(201).json({ token, user: rows[0] });
+      const { password_hash, ...safeUser } = rows[0];
+      return res.status(201).json({ token, user: { ...safeUser, name: safeUser.full_name } });
     }
 
     res.status(201).json({
@@ -46,6 +53,83 @@ router.post('/register', async (req, res) => {
       pending: true,
     });
   } catch (err) {
+    console.error('Register error:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/auth/google
+// mode: 'login'    → faqat mavjud foydalanuvchilar (Login sahifasi)
+// mode: 'register' → yangi foydalanuvchi yaratadi (Register sahifasi)
+router.post('/google', async (req, res) => {
+  try {
+    const { email, name, googleUid, mode } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email talab qilinadi' });
+
+    const { rows } = await db.query(
+      `SELECT * FROM users WHERE email = $1`, [email.toLowerCase()]
+    );
+    const user = rows[0];
+
+    // Mavjud foydalanuvchi
+    if (user) {
+      if (user.status === 'pending')
+        return res.json({ pending: true });
+      if (user.status === 'rejected')
+        return res.status(403).json({ message: 'Hisobingiz rad etilgan. Admin bilan bog\'laning.' });
+      if (user.status !== 'active' || !user.is_approved)
+        return res.json({ pending: true });
+
+      // Active user — token qaytар
+      const token = sign(user.id);
+      // Department nomini ham olish
+      const { rows: fullRows } = await db.query(
+        `SELECT u.*, d.name AS department_name
+         FROM users u LEFT JOIN departments d ON u.department_id = d.id
+         WHERE u.id = $1`, [user.id]
+      );
+      const fullUser = fullRows[0];
+      const { password_hash, ...safeUser } = fullUser;
+      return res.json({ token, user: { ...safeUser, name: safeUser.full_name } });
+    }
+
+    // Yangi foydalanuvchi
+    if (mode === 'login') {
+      // Login sahifasida yangi foydalanuvchi yaratilmaydi
+      return res.status(404).json({
+        message: 'Bu Google akkaunt tizimda ro\'yxatdan o\'tmagan. Avval ro\'yxatdan o\'ting.'
+      });
+    }
+
+    // Register mode — yangi foydalanuvchi yaratish
+    const { rows: countRows } = await db.query('SELECT COUNT(*) AS cnt FROM users');
+    const isFirst = parseInt(countRows[0]?.cnt || 0) === 0;
+
+    await db.query(
+      `INSERT INTO users (full_name, email, password_hash, role, status, is_approved)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        name || email.split('@')[0],
+        email.toLowerCase(),
+        '',
+        isFirst ? 'admin' : 'employee',
+        isFirst ? 'active' : 'pending',
+        isFirst ? 1 : 0,
+      ]
+    );
+
+    if (!isFirst) {
+      return res.status(201).json({ pending: true });
+    }
+
+    const { rows: newRows } = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    const newUser = newRows[0];
+    const token = sign(newUser.id);
+    const { password_hash, ...safeUser } = newUser;
+    return res.status(201).json({ token, user: { ...safeUser, name: safeUser.full_name } });
+
+  } catch (err) {
+    console.error('Google auth error:', err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -68,6 +152,11 @@ router.post('/login', async (req, res) => {
 
     if (!user)
       return res.status(401).json({ message: 'Email yoki parol noto\'g\'ri' });
+
+    if (user.provider === 'google') {
+      return res.status(403).json({ message: 'Bu akkaunt Google orqali ro\'yxatdan o\'tgan. Iltimos, Google bilan kiring.' });
+    }
+
     if (user.status === 'pending')
       return res.status(401).json({ message: 'Hisobingiz hali tasdiqlanmagan. Admin tasdiqlashini kuting.' });
     if (user.status === 'rejected')

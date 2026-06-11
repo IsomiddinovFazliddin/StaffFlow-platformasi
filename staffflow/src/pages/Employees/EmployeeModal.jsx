@@ -7,19 +7,16 @@ import Button from '../../components/ui/Button';
 
 // ── Role options per creator role ─────────────────────────────────────────────
 const CREATABLE_ROLES = {
-  admin:      [{ value: 'admin', label: 'HR Manager' }, { value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
-  hr_manager: [{ value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
+  admin:      [{ value: 'team_lead', label: 'Team Lead' }, { value: 'employee', label: 'Xodim' }],
   team_lead:  [{ value: 'employee', label: 'Xodim' }],
 };
 
 // Department field behavior by selected role
-// 'hidden'   → don't show (hr_manager)
 // 'filtered' → only depts without a team_lead (team_lead role)
 // 'all'      → all departments (employee role)
 const DEPT_MODE = {
-  hr_manager: 'hidden',
-  team_lead:  'filtered',
-  employee:   'all',
+  team_lead: 'filtered',
+  employee:  'all',
 };
 
 const EMPTY_FORM = {
@@ -27,65 +24,41 @@ const EMPTY_FORM = {
   salary: '', status: 'Active', password: '', accountRole: 'employee', position: '',
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const loadAccounts = () => {
-  try { return JSON.parse(localStorage.getItem('sf_accounts')) || []; }
-  catch { return []; }
-};
-
 export default function EmployeeModal({ onClose, employee }) {
   const t = useTranslate();
   const { addEmployee, updateEmployee, employees } = useApp();
-  const { auth, updateAuth, createAccount } = useAuth();
+  const { auth } = useAuth();
   const { departments } = useDepartments();
 
   const creatorRole = auth?.role ?? 'admin';
   const roleOptions = CREATABLE_ROLES[creatorRole] ?? CREATABLE_ROLES.admin;
 
-  // Enrich employees with accountRole
-  const accountRoleMap = useMemo(() => {
-    const map = {};
-    loadAccounts().forEach(a => { map[a.email?.toLowerCase()] = a.role; });
-    return map;
-  }, []);
-
-  const enriched = useMemo(() =>
-    employees.map(e => ({ ...e, accountRole: accountRoleMap[e.email?.toLowerCase()] ?? 'employee' })),
-    [employees, accountRoleMap]
-  );
-
-  // Departments that already have a team_lead
+  // Departments that already have a team_lead (from backend employees state)
   const deptsWithLead = useMemo(() => {
     const leadDepts = new Set(
-      enriched.filter(e => e.accountRole === 'team_lead' && e.department).map(e => e.department)
+      employees
+        .filter(e => e.accountRole === 'team_lead' && e.department)
+        .map(e => e.department)
     );
     return leadDepts;
-  }, [enriched]);
+  }, [employees]);
 
   // Init form
   const [form, setForm] = useState(() => {
     if (employee) {
-      const acc = loadAccounts().find(a => a.email?.toLowerCase() === employee.email?.toLowerCase());
-      return { ...employee, password: '', accountRole: acc?.role ?? 'employee' };
+      return { ...employee, password: '', accountRole: employee.accountRole ?? 'employee' };
     }
-    // Team lead can only add employees
     return { ...EMPTY_FORM, accountRole: roleOptions[0]?.value ?? 'employee' };
   });
-  const [errors, setErrors] = useState({});
+  const [errors,   setErrors]   = useState({});
+  const [saving,   setSaving]   = useState(false);
+  const [apiError, setApiError] = useState('');
 
   const deptMode = DEPT_MODE[form.accountRole] ?? 'all';
-  const needsDept = deptMode !== 'hidden';
+  const needsDept = true; // all roles need department
 
   // Departments shown in dropdown based on selected role
-  const availableDepts = useMemo(() => {
-    if (deptMode === 'hidden') return [];
-    if (deptMode === 'filtered') {
-      // For team_lead: show all depts, but disable those that already have a lead
-      return departments;
-    }
-    // For employee: all departments
-    return departments;
-  }, [deptMode, departments]);
+  const availableDepts = useMemo(() => departments, [departments]);
 
   const validate = () => {
     const e = {};
@@ -93,7 +66,7 @@ export default function EmployeeModal({ onClose, employee }) {
     if (!form.email.trim()) e.email = t('employeeModal.errorEmail');
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = t('employeeModal.errorEmailInvalid');
     if (!form.salary || isNaN(form.salary) || Number(form.salary) <= 0) e.salary = t('employeeModal.errorSalary');
-    if (needsDept && !form.department) e.department = t('employeeModal.errorDepartment');
+    if (!form.department) e.department = t('employeeModal.errorDepartment');
     if (form.accountRole === 'employee' && !form.position?.trim()) e.position = 'Lavozim kiritilishi shart';
     if (!employee && form.password && form.password.length < 6)
       e.password = 'Parol kamida 6 ta belgi bo\'lishi kerak';
@@ -103,7 +76,6 @@ export default function EmployeeModal({ onClose, employee }) {
   const handleChange = (e) => {
     const { name, value } = e.target;
     const cap = (v) => v.replace(/^\w/, c => c.toUpperCase());
-    // Reset department when role changes
     if (name === 'accountRole') {
       setForm(f => ({ ...f, accountRole: value, department: '' }));
     } else {
@@ -112,43 +84,33 @@ export default function EmployeeModal({ onClose, employee }) {
     setErrors(er => ({ ...er, [name]: undefined, department: undefined }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
+    setSaving(true);
+    setApiError('');
 
+    const deptObj = departments.find(d => d.name === form.department);
     const payload = {
       ...form,
-      department: needsDept ? form.department : '',
-      salary:     Number(form.salary),
+      department:   form.department,
+      departmentId: deptObj?.id || null,
+      salary:       Number(form.salary),
     };
 
-    if (employee) {
-      updateEmployee(employee.id, payload);
-      try {
-        const accounts = loadAccounts().map(a =>
-          a.email?.toLowerCase() === payload.email?.toLowerCase()
-            ? { ...a, role: form.accountRole }
-            : a
-        );
-        localStorage.setItem('sf_accounts', JSON.stringify(accounts));
-      } catch { /* ignore */ }
-      if (auth?.employeeId === employee.id) {
-        updateAuth({ name: payload.name, email: payload.email });
+    try {
+      if (employee) {
+        await updateEmployee(employee.id, payload);
+      } else {
+        await addEmployee(payload);
       }
-    } else {
-      const newEmp = addEmployee(payload);
-      if (form.password) {
-        createAccount({
-          name:       payload.name,
-          email:      payload.email,
-          password:   form.password,
-          role:       form.accountRole,
-          employeeId: newEmp?.id ?? null,
-        });
-      }
+      onClose();
+    } catch (err) {
+      setApiError(err.message || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
     }
-    onClose();
   };
 
   const inp = (name) =>
@@ -195,7 +157,7 @@ export default function EmployeeModal({ onClose, employee }) {
               {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
             </div>
 
-            {/* 3. Rol — filtered by creator role */}
+            {/* 3. Rol */}
             <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
               <select name="accountRole" value={form.accountRole} onChange={handleChange}
@@ -209,7 +171,9 @@ export default function EmployeeModal({ onClose, employee }) {
             {/* 4. Lavozim — only for employee role */}
             {form.accountRole === 'employee' && (
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Lavozim <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Lavozim <span className="text-red-500">*</span>
+                </label>
                 <input name="position" type="text" value={form.position || ''} onChange={handleChange}
                   placeholder="Masalan: Finance Analyst, Developer..."
                   className={inp('position')} />
@@ -225,7 +189,7 @@ export default function EmployeeModal({ onClose, employee }) {
               {errors.salary && <p className="text-xs text-red-500 mt-1">{errors.salary}</p>}
             </div>
 
-            {/* 5. Holat */}
+            {/* 6. Holat */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('employeeModal.fieldStatus')}</label>
               <select name="status" value={form.status} onChange={handleChange}
@@ -235,52 +199,48 @@ export default function EmployeeModal({ onClose, employee }) {
               </select>
             </div>
 
-            {/* 6. Bo'lim — dynamic based on selected role */}
-            {deptMode !== 'hidden' && (
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {t('employeeModal.fieldDepartment')}
-                  <span className="text-red-500 ml-0.5">*</span>
-                </label>
+            {/* 7. Bo'lim */}
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {t('employeeModal.fieldDepartment')}
+                <span className="text-red-500 ml-0.5">*</span>
+              </label>
 
-                {availableDepts.length === 0 ? (
-                  <div className="w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-700">
-                    ⚠️ Hech qanday bo'lim mavjud emas.
-                  </div>
-                ) : deptMode === 'filtered' ? (
-                  // Team Lead: disabled options = depts WITH existing lead
-                  <select name="department" value={form.department} onChange={handleChange}
-                    className={inp('department')}>
-                    <option value="" disabled>— Bo'limni tanlang —</option>
-                    {availableDepts.map(d => {
-                      const hasLead = deptsWithLead.has(d.name);
-                      return (
-                        <option key={d.id} value={d.name} disabled={hasLead}>
-                          {d.name}{hasLead ? ' (Team Lead bor)' : ' (Bo\'sh)'}
-                        </option>
-                      );
-                    })}
-                  </select>
-                ) : (
-                  // Employee: disabled options = depts WITHOUT a team lead
-                  <select name="department" value={form.department} onChange={handleChange}
-                    className={inp('department')}>
-                    <option value="" disabled>— Bo'limni tanlang —</option>
-                    {availableDepts.map(d => {
-                      const hasLead = deptsWithLead.has(d.name);
-                      return (
-                        <option key={d.id} value={d.name} disabled={!hasLead}>
-                          {d.name}{!hasLead ? ' (Team Lead yo\'q)' : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                )}
-                {errors.department && <p className="text-xs text-red-500 mt-1">{errors.department}</p>}
-              </div>
-            )}
+              {availableDepts.length === 0 ? (
+                <div className="w-full border border-amber-200 bg-amber-50 rounded-lg px-3 py-2 text-sm text-amber-700">
+                  ⚠️ Hech qanday bo'lim mavjud emas.
+                </div>
+              ) : deptMode === 'filtered' ? (
+                <select name="department" value={form.department} onChange={handleChange}
+                  className={inp('department')}>
+                  <option value="" disabled>— Bo'limni tanlang —</option>
+                  {availableDepts.map(d => {
+                    const hasLead = deptsWithLead.has(d.name);
+                    return (
+                      <option key={d.id} value={d.name} disabled={hasLead}>
+                        {d.name}{hasLead ? ' (Team Lead bor)' : ' (Bo\'sh)'}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <select name="department" value={form.department} onChange={handleChange}
+                  className={inp('department')}>
+                  <option value="" disabled>— Bo'limni tanlang —</option>
+                  {availableDepts.map(d => {
+                    const hasLead = deptsWithLead.has(d.name);
+                    return (
+                      <option key={d.id} value={d.name} disabled={!hasLead}>
+                        {d.name}{!hasLead ? ' (Team Lead yo\'q)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
+              {errors.department && <p className="text-xs text-red-500 mt-1">{errors.department}</p>}
+            </div>
 
-            {/* 7. Parol — yangi xodim uchun */}
+            {/* 8. Parol — yangi xodim uchun */}
             {!employee && (
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -296,12 +256,13 @@ export default function EmployeeModal({ onClose, employee }) {
 
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
             <Button variant="secondary" type="button" onClick={onClose}>{t('employeeModal.cancel')}</Button>
-            <Button type="submit">
-              {employee
+            <Button type="submit" disabled={saving}>
+              {saving ? 'Saqlanmoqda...' : (employee
                 ? t('employeeModal.save')
-                : { hr_manager: "Manager qo'shish", team_lead: "Team Lead qo'shish" }[form.accountRole] ?? "Xodim qo'shish"}
+                : { team_lead: "Team Lead qo'shish" }[form.accountRole] ?? "Xodim qo'shish")}
             </Button>
           </div>
+          {apiError && <p className="text-xs text-red-500 text-center">{apiError}</p>}
         </form>
       </div>
     </div>

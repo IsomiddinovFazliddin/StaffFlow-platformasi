@@ -68,10 +68,12 @@ export default function MySalary() {
   const { salaries, employees } = useApp();
   const { auth } = useAuth();
 
-  // Find employee record
+  // Find employee record — match by id or email
   const employee = useMemo(() =>
     employees.find(e =>
+      e.id === auth?.id ||
       e.id === auth?.employeeId ||
+      String(e.id) === String(auth?.id) ||
       e.email?.toLowerCase() === auth?.email?.toLowerCase()
     ),
     [employees, auth]
@@ -80,7 +82,9 @@ export default function MySalary() {
   // Current month salary record
   const currentSalary = useMemo(() => {
     if (!employee) return null;
-    return salaries.find(s => s.employeeId === employee.id) ?? null;
+    return salaries.find(s =>
+      s.employeeId === employee.id || String(s.employeeId) === String(employee.id)
+    ) ?? null;
   }, [salaries, employee]);
 
   // Full history from join date

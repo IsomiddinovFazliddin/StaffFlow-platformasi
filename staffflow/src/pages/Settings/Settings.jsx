@@ -44,11 +44,11 @@ function PasswordForm() {
 
   const toggle = (k) => setShow(s => ({ ...s, [k]: !s[k] }));
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     setMsg('');
     if (pw.next !== pw.confirm) { setMsg('Yangi parollar mos kelmadi'); return; }
-    const result = changePassword(pw.current, pw.next);
+    const result = await changePassword(pw.current, pw.next);
     if (result.error) { setMsg(result.error); return; }
     setSaved(true);
     setPw({ current: '', next: '', confirm: '' });

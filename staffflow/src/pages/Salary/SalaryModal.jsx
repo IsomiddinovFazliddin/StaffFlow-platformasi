@@ -9,12 +9,14 @@ export default function SalaryModal({ record, onSave, onClose }) {
 
   const net = Number(form.base) + Number(form.bonus) - Number(form.deductions);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     onSave(record.id, {
-      base:       Number(form.base),
-      bonus:      Number(form.bonus),
-      deductions: Number(form.deductions),
+      base_salary: Number(form.base),
+      bonus:       Number(form.bonus),
+      deduction:   Number(form.deductions),
+      base:        Number(form.base),
+      deductions:  Number(form.deductions),
     });
   };
 

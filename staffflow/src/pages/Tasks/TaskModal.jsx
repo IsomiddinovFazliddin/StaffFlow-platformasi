@@ -8,6 +8,8 @@ export default function TaskModal({ task, onClose, canAssign }) {
   const { employees, addTask, updateTask } = useApp();
   const [form, setForm] = useState(task ? { ...task } : EMPTY);
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   const validate = () => {
     const e = {};
@@ -30,12 +32,24 @@ export default function TaskModal({ task, onClose, canAssign }) {
     setErrors(er => ({ ...er, [name]: undefined }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    task ? updateTask(task.id, form) : addTask(form);
-    onClose();
+    setSaving(true);
+    setApiError('');
+    try {
+      if (task) {
+        await updateTask(task.id, form);
+      } else {
+        await addTask(form);
+      }
+      onClose();
+    } catch (err) {
+      setApiError(err.message || 'Xatolik yuz berdi');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -73,7 +87,9 @@ export default function TaskModal({ task, onClose, canAssign }) {
                   className={`w-full border rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 transition
                     ${errors.assigneeId ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-500'}`}>
                   <option value="">— Tanlang —</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  {employees
+                    .filter(e => e.accountRole !== 'admin' && e.role !== 'admin')
+                    .map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
                 {errors.assigneeId && <p className="text-xs text-red-500 mt-1">{errors.assigneeId}</p>}
               </div>
@@ -110,8 +126,9 @@ export default function TaskModal({ task, onClose, canAssign }) {
 
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
             <Button variant="secondary" type="button" onClick={onClose}>Bekor qilish</Button>
-            <Button type="submit">{task ? 'Saqlash' : 'Qo\'shish'}</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saqlanmoqda...' : (task ? 'Saqlash' : 'Qo\'shish')}</Button>
           </div>
+          {apiError && <p className="text-xs text-red-500 text-center mt-2">{apiError}</p>}
         </form>
       </div>
     </div>

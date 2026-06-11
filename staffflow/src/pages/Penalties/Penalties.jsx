@@ -38,18 +38,20 @@ export default function Penalties() {
     (!filterEmp   || p.employeeId === Number(filterEmp))
   );
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    const emp = employees.find(e => e.id === Number(addForm.employeeId));
+    const emp = employees.find(em => em.id === addForm.employeeId || String(em.id) === addForm.employeeId);
     if (!emp) return;
-    addPenalty({
-      employeeId:   emp.id,
-      employeeName: emp.name,
-      type:         addForm.type,
-      points:       Number(addForm.points),
-      reason:       addForm.reason,
-      month:        filterMonth,
-    });
+    try {
+      await addPenalty({
+        employeeId:   emp.id,
+        employeeName: emp.name,
+        type:         addForm.type,
+        points:       Number(addForm.points),
+        reason:       addForm.reason,
+        month:        filterMonth,
+      });
+    } catch { /* ignore */ }
     setShowAdd(false);
     setAddForm({ employeeId: '', type: 'MANUAL', points: -1, reason: '' });
   };
@@ -84,7 +86,9 @@ export default function Penalties() {
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {employees.slice(0, 4).map(emp => {
+        {employees
+          .filter(e => e.accountRole !== 'admin' && e.role !== 'admin')
+          .slice(0, 4).map(emp => {
           const pts = penalties
             .filter(p => p.employeeId === emp.id && p.month === filterMonth)
             .reduce((s, p) => s + p.points, 0);
@@ -112,7 +116,9 @@ export default function Penalties() {
         <select value={filterEmp} onChange={e => setFilterEmp(e.target.value)}
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
           <option value="">Barcha xodimlar</option>
-          {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+          {employees
+            .filter(e => e.accountRole !== 'admin' && e.role !== 'admin')
+            .map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
         </select>
       </div>
 
@@ -147,7 +153,7 @@ export default function Penalties() {
                     {fmt(Math.abs(p.points) * config.pointValue)}
                   </td>
                   <td className="px-5 py-3.5">
-                    <button onClick={() => removePenalty(p.id)}
+                    <button onClick={async () => { try { await removePenalty(p.id); } catch {} }}
                       className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
                       <Trash2 size={15} strokeWidth={2} />
                     </button>
@@ -172,7 +178,9 @@ export default function Penalties() {
                   onChange={e => setAddForm(f => ({ ...f, employeeId: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400">
                   <option value="">Tanlang...</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  {employees
+                    .filter(e => e.accountRole !== 'admin' && e.role !== 'admin')
+                    .map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
                 </select>
               </div>
               <div>

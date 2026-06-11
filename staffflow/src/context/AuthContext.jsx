@@ -1,24 +1,23 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { signInWithPopup } from 'firebase/auth';
+import { auth as firebaseAuth, googleProvider } from '../firebase';
 import { ROLE_PERMISSIONS } from '../utils/mockData';
+import api from '../utils/api';
 
-const AuthContext  = createContext(null);
-const SESSION_KEY  = 'sf_auth';
-const ACCOUNTS_KEY = 'sf_accounts';
+const AuthContext = createContext(null);
+const SESSION_KEY = 'sf_auth';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const loadAccounts = () => {
-  try { return JSON.parse(localStorage.getItem(ACCOUNTS_KEY)) || []; }
-  catch { return []; }
-};
-const saveAccounts = (list) => localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list));
-
-const buildSession = (user, employeeId = null, name = null) => ({
-  id:          user.id,
-  name:        name ?? user.name,
-  email:       user.email,
-  role:        user.role,
-  employeeId:  employeeId ?? user.employeeId ?? null,
-  permissions: ROLE_PERMISSIONS[user.role] || [],
+// ── Build session from backend user ──────────────────────────────────────────
+const buildSession = (user, token) => ({
+  id:           user.id || user._id,
+  name:         user.name || user.full_name || '',
+  email:        user.email,
+  role:         user.role,
+  token:        token,
+  employeeId:   user.id || user._id,
+  departmentId: user.departmentId || user.department_id || null,
+  department:   user.department || user.department_name || user.departmentName || null,
+  permissions:  ROLE_PERMISSIONS[user.role] || [],
 });
 
 export function AuthProvider({ children }) {
@@ -27,150 +26,60 @@ export function AuthProvider({ children }) {
     catch { return null; }
   });
 
-  // Reactive pending count — updates when approve/reject called
-  const [pendingCount, setPendingCount] = useState(() =>
-    loadAccounts().filter(a => a.status === 'pending').length
-  );
+  const [pendingCount, setPendingCount] = useState(0);
 
-  const refreshPendingCount = () => {
-    setPendingCount(loadAccounts().filter(a => a.status === 'pending').length);
+  // Fetch pending count from backend (admin only)
+  const refreshPendingCount = async () => {
+    if (!auth?.token || auth?.role !== 'admin') return;
+    try {
+      const res = await api.approvals.pendingCount();
+      setPendingCount(res.count || 0);
+    } catch { /* ignore */ }
   };
 
-  // Sync when AppContext patches sf_auth
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key !== SESSION_KEY || !e.newValue) return;
-      try { setAuth(JSON.parse(e.newValue)); } catch { /* ignore */ }
-    };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
-  }, []);
+    if (auth?.role === 'admin') refreshPendingCount();
+  }, [auth?.token]);
 
-  // Migration: upgrade existing hr_manager accounts to admin
-  useEffect(() => {
+  // ── Login ────────────────────────────────────────────────────────────────
+  const login = async (email, password) => {
     try {
-      const accounts = loadAccounts();
-      const migrated = accounts.map(a =>
-        a.role === 'admin' ? { ...a, role: 'admin' } : a
-      );
-      if (migrated.some((a, i) => a.role !== accounts[i].role)) {
-        saveAccounts(migrated);
-      }
-      // Also migrate current session
-      const session = JSON.parse(localStorage.getItem(SESSION_KEY));
-      if (session?.role === 'admin') {
-        const updated = { ...session, role: 'admin', permissions: ROLE_PERMISSIONS['admin'] || [] };
-        localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
-        setAuth(updated);
-      }
-    } catch { /* ignore */ }
-  }, []);
+      const res = await api.auth.login(email, password);
+      const session = buildSession(res.user, res.token);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      setAuth(session);
+      return { user: session };
+    } catch (err) {
+      return { error: err.message || 'Kirish xatoligi' };
+    }
+  };
 
-  // Check if current session is still valid (account not deleted)
-  useEffect(() => {
-    if (!auth) return;
+  // ── Register ─────────────────────────────────────────────────────────────
+  const register = async ({ name, email, password }) => {
     try {
-      const accounts = JSON.parse(localStorage.getItem(ACCOUNTS_KEY)) || [];
-      const stillExists = accounts.find(a => a.id === auth.id);
-      if (!stillExists) {
-        // Account was deleted — force logout
-        localStorage.removeItem(SESSION_KEY);
-        setAuth(null);
+      const res = await api.auth.register({ name, email, password });
+      // Birinchi foydalanuvchi → admin, darhol login
+      if (res.token && res.user) {
+        const session = buildSession(res.user, res.token);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        setAuth(session);
+        return { user: session };
       }
-    } catch { /* ignore */ }
-  }, [auth?.id]);
-
-  // ── Register ────────────────────────────────────────────────────────────────
-  const register = ({ name, email, password }) => {
-    const accounts = loadAccounts();
-    if (accounts.find(a => a.email === email.toLowerCase().trim()))
-      return { error: 'Bu email allaqachon ro\'yxatdan o\'tgan' };
-
-    const role   = accounts.length === 0 ? 'admin' : 'employee';
-    // First user (admin) is auto-approved; others are pending
-    const status = accounts.length === 0 ? 'active' : 'pending';
-    const newUser = {
-      id: Date.now(), name: name.trim(),
-      email: email.toLowerCase().trim(), password,
-      role, employeeId: null, status,
-      registeredAt: new Date().toISOString(),
-    };
-    saveAccounts([...accounts, newUser]);
-
-    // Pending users don't get a session — they must wait for approval
-    if (status === 'pending') {
       return { pending: true };
+    } catch (err) {
+      return { error: err.message || 'Ro\'yxatdan o\'tish xatoligi' };
     }
-
-    const session = buildSession(newUser);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    setAuth(session);
-    return { user: session };
   };
 
-  const login = (email, password) => {
-    const accounts = loadAccounts();
-
-    // Step 1: find by email only
-    const user = accounts.find(a => a.email === email.toLowerCase().trim());
-    if (!user) return { error: 'Foydalanuvchi topilmadi' };
-
-    // Step 2: status checks
-    if (user.status === 'pending')
-      return { error: 'Hisobingiz hali tasdiqlanmagan. Admin tasdiqlashini kuting.' };
-    if (user.status === 'rejected')
-      return { error: 'Hisobingiz rad etilgan. Admin bilan bog\'laning.' };
-    if (user.status && user.status !== 'active')
-      return { error: 'Hisobingiz faol emas.' };
-
-    // Step 3: password check
-    if (user.password !== password)
-      return { error: 'Parol noto\'g\'ri' };
-
-    // Step 4: department check for non-admin roles
-    if (['employee', 'team_lead'].includes(user.role)) {
-      try {
-        const liveEmps = JSON.parse(localStorage.getItem('sf_employees')) || [];
-        const emp = liveEmps.find(e => e.email?.toLowerCase() === user.email?.toLowerCase());
-        if (liveEmps.length > 0 && !emp?.department) {
-          return { error: 'Hisobingizga bo\'lim tayinlanmagan. Admin bilan bog\'laning.' };
-        }
-      } catch { /* allow */ }
-    }
-
-    // Resolve live employee record — ONLY by exact email match, no fallback
-    let resolvedId   = user.employeeId;
-    let resolvedName = user.name;
-    if (user.role === 'employee' || user.role === 'team_lead') {
-      try {
-        const liveEmps = JSON.parse(localStorage.getItem('sf_employees')) || [];
-        const match = liveEmps.find(e => e.email?.toLowerCase() === user.email?.toLowerCase());
-        if (match) {
-          resolvedId   = match.id;
-          resolvedName = match.name;
-        }
-        // No fallback to liveEmps[0] — that caused wrong user to be shown
-      } catch { /* use defaults */ }
-    }
-
-    // Clear any previous session before saving new one
-    localStorage.removeItem(SESSION_KEY);
-
-    const session = buildSession(user, resolvedId, resolvedName);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    setAuth(session);
-    return { user: session };
-  };
-
-  // ── Logout ──────────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
-    // Clear user-specific cached data
     localStorage.removeItem('sf_profile');
     setAuth(null);
+    setPendingCount(0);
   };
 
-  // ── Patch auth + localStorage ───────────────────────────────────────────────
+  // ── Update auth session ───────────────────────────────────────────────────
   const updateAuth = (patch) => {
     setAuth(prev => {
       if (!prev) return prev;
@@ -180,57 +89,113 @@ export function AuthProvider({ children }) {
     });
   };
 
-  // ── Create account for employee (Admin → Employees page) ────────────────────
-  const createAccount = ({ name, email, password, role = 'employee', employeeId = null }) => {
-    const accounts = loadAccounts();
-    if (accounts.find(a => a.email === email.toLowerCase().trim()))
-      return { error: 'Bu email allaqachon mavjud' };
-    const newUser = {
-      id: Date.now(), name, email: email.toLowerCase().trim(),
-      password, role, employeeId,
-      status: 'active', // Admin-created accounts are immediately active
-    };
-    saveAccounts([...accounts, newUser]);
-    return { user: newUser };
+  // ── Google Auth ───────────────────────────────────────────────────────────
+  const loginWithGoogle = async (mode = 'register') => {
+    // 1. Firebase popup
+    let firebaseResult;
+    try {
+      firebaseResult = await signInWithPopup(firebaseAuth, googleProvider);
+    } catch (err) {
+      if (err.code === 'auth/popup-closed-by-user') return null;
+      if (err.code === 'auth/cancelled-popup-request') return null;
+      if (err.code === 'auth/popup-blocked') return { error: 'Popup bloklandi. Brauzer sozlamalarini tekshiring.' };
+      return { error: err.message || 'Google bilan kirishda xatolik' };
+    }
+
+    // 2. Firebase muvaffaqiyatli — backend ga yuboramiz
+    const gUser = firebaseResult.user;
+    const email = gUser.email?.toLowerCase().trim();
+    const name  = gUser.displayName || email.split('@')[0];
+
+    // Popup yopilgandan keyin kichik kutish (brauzer focus qaytishi uchun)
+    await new Promise(r => setTimeout(r, 500));
+
+    // Vite proxy orqali yuborish — CORS muammosi yo'q
+    try {
+      const resp = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, googleUid: gUser.uid, mode }),
+      });
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok) {
+        return { error: data.message || `Xato: ${resp.status}` };
+      }
+
+      if (data.pending) return { pending: true };
+
+      if (!data.token || !data.user) {
+        return { error: 'Serverdan noto\'g\'ri javob keldi' };
+      }
+
+      const session = buildSession(data.user, data.token);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      setAuth(session);
+      return { user: session };
+
+    } catch (netErr) {
+      return { error: 'Tizimga ulanib bo\'lmadi. Backend ishga tushirilganligini tekshiring.' };
+    }
   };
 
-  // ── Approve pending user ────────────────────────────────────────────────────
-  const approveUser = (userId, { department, role }) => {
-    const accounts = loadAccounts();
-    const updated = accounts.map(a =>
-      a.id === userId ? { ...a, status: 'active', role, department } : a
-    );
-    saveAccounts(updated);
-    refreshPendingCount();
-    return { success: true };
+  // ── Create account (Admin → Employees page) ───────────────────────────────
+  const createAccount = async ({ name, email, password, role = 'employee', employeeId = null }) => {
+    try {
+      const res = await api.users.create({
+        name, email, password,
+        role,
+        approvalStatus: 'approved',
+        status: 'Active',
+      });
+      return { user: res.user };
+    } catch (err) {
+      return { error: err.message };
+    }
   };
 
-  // ── Reject pending user ─────────────────────────────────────────────────────
-  const rejectUser = (userId) => {
-    const accounts = loadAccounts();
-    const updated = accounts.map(a =>
-      a.id === userId ? { ...a, status: 'rejected' } : a
-    );
-    saveAccounts(updated);
-    refreshPendingCount();
-    return { success: true };
+  // ── Approve pending user ──────────────────────────────────────────────────
+  const approveUser = async (userId, { department, role, departmentId }) => {
+    try {
+      const res = await api.approvals.approve(userId, {
+        role: role || 'employee',
+        departmentId: departmentId || null,
+      });
+      setPendingCount(res.pendingCount || 0);
+      return { success: true };
+    } catch (err) {
+      return { error: err.message };
+    }
   };
 
-  // ── Get pending users ───────────────────────────────────────────────────────
-  const getPendingUsers = () =>
-    loadAccounts().filter(a => a.status === 'pending');
+  // ── Reject pending user ───────────────────────────────────────────────────
+  const rejectUser = async (userId) => {
+    try {
+      const res = await api.approvals.reject(userId);
+      setPendingCount(res.pendingCount || 0);
+      return { success: true };
+    } catch (err) {
+      return { error: err.message };
+    }
+  };
 
-  // ── Change password ─────────────────────────────────────────────────────────
-  const changePassword = (currentPassword, newPassword) => {
+  // ── Get pending users ─────────────────────────────────────────────────────
+  const getPendingUsers = async () => {
+    try {
+      const res = await api.approvals.pending();
+      return res.pending || [];
+    } catch { return []; }
+  };
+
+  // ── Change password ───────────────────────────────────────────────────────
+  const changePassword = async (currentPassword, newPassword) => {
     if (!auth) return { error: 'Tizimga kiring' };
-    const accounts = loadAccounts();
-    const idx = accounts.findIndex(a => a.id === auth.id && a.password === currentPassword);
-    if (idx === -1) return { error: 'Joriy parol noto\'g\'ri' };
-    if (newPassword.length < 6) return { error: 'Yangi parol kamida 6 ta belgi bo\'lishi kerak' };
-    const updated = [...accounts];
-    updated[idx] = { ...updated[idx], password: newPassword };
-    saveAccounts(updated);
-    return { success: true };
+    try {
+      await api.auth.changePassword(currentPassword, newPassword);
+      return { success: true };
+    } catch (err) {
+      return { error: err.message };
+    }
   };
 
   const can          = (permission) => auth?.permissions?.includes(permission) ?? false;
@@ -240,7 +205,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       auth, login, logout, register, updateAuth, createAccount, changePassword,
-      approveUser, rejectUser, getPendingUsers, pendingCount,
+      loginWithGoogle,
+      approveUser, rejectUser, getPendingUsers, pendingCount, refreshPendingCount,
       can, hasRole, isAdminLevel,
     }}>
       {children}

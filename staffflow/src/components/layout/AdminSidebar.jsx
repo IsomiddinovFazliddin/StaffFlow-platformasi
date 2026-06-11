@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Briefcase, ListTodo,
   CalendarCheck, Banknote, Activity,
-  AlertOctagon, BarChart2, FileText, UserCheck,
+  AlertOctagon, FileText, UserCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { PERMISSIONS } from '../../utils/mockData';
@@ -17,7 +17,7 @@ const ALL_NAV = [
   { to: '/admin/salary',      label: 'Maosh',             Icon: Banknote,        permission: PERMISSIONS.VIEW_ALL_SALARY },
   { to: '/admin/activity',    label: 'Faoliyat',          Icon: Activity,        permission: PERMISSIONS.VIEW_REPORTS },
   { to: '/admin/penalties',   label: 'Jarima tizimi',     Icon: AlertOctagon,    permission: PERMISSIONS.MANAGE_SETTINGS },
-  { to: '/admin/analytics',   label: 'Analitika',         Icon: BarChart2,        permission: PERMISSIONS.VIEW_REPORTS },
+
   { to: '/admin/hisobotlar',  label: 'Hisobotlar',        Icon: FileText,         permission: PERMISSIONS.VIEW_REPORTS },
   { to: '/admin/pending',     label: 'Tasdiqlash',        Icon: UserCheck,        permission: PERMISSIONS.MANAGE_SETTINGS },
 ];

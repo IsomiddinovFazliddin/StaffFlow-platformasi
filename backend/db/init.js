@@ -1,83 +1,117 @@
 /**
- * db/init.js — Create all tables
+ * db/init.js — Create all tables (SQLite)
  * Run: node db/init.js
  */
 require('dotenv').config();
-const db = require('./index');
+const { db } = require('./index');
 
-async function init() {
-  await db.query(`
+function init() {
+  db.exec(`
     CREATE TABLE IF NOT EXISTS departments (
-      id         SERIAL PRIMARY KEY,
-      name       VARCHAR(255) NOT NULL UNIQUE,
-      created_at TIMESTAMP DEFAULT NOW()
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
     );
   `);
 
-  await db.query(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id            SERIAL PRIMARY KEY,
-      full_name     VARCHAR(255) NOT NULL,
-      email         VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255) NOT NULL,
-      role          VARCHAR(50)  DEFAULT 'employee',
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name     TEXT NOT NULL,
+      email         TEXT UNIQUE NOT NULL,
+      password_hash TEXT DEFAULT NULL,
+      role          TEXT DEFAULT 'employee',
       department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
-      position      VARCHAR(255) DEFAULT '',
-      salary        DECIMAL(10,2) DEFAULT 0,
-      phone         VARCHAR(50)  DEFAULT '',
-      status        VARCHAR(50)  DEFAULT 'pending',
-      is_approved   BOOLEAN      DEFAULT false,
+      provider      TEXT DEFAULT 'email',
+      position      TEXT DEFAULT '',
+      salary        REAL DEFAULT 0,
+      phone         TEXT DEFAULT '',
+      status        TEXT DEFAULT 'pending',
+      is_approved   INTEGER DEFAULT 0,
       approved_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at    TIMESTAMP DEFAULT NOW()
+      created_at    TEXT DEFAULT (datetime('now'))
     );
   `);
 
-  await db.query(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS attendance (
-      id         SERIAL PRIMARY KEY,
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      date       DATE NOT NULL,
-      check_in   TIME,
-      check_out  TIME,
-      status     VARCHAR(50),
-      work_hours DECIMAL(4,2),
-      created_at TIMESTAMP DEFAULT NOW(),
+      date       TEXT NOT NULL,
+      check_in   TEXT,
+      check_out  TEXT,
+      status     TEXT,
+      work_hours REAL,
+      created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, date)
     );
   `);
 
-  await db.query(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
-      id            SERIAL PRIMARY KEY,
-      title         VARCHAR(255) NOT NULL,
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      title         TEXT NOT NULL,
       description   TEXT DEFAULT '',
       assigned_to   INTEGER REFERENCES users(id) ON DELETE SET NULL,
       assigned_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
       department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
-      status        VARCHAR(50) DEFAULT 'pending',
-      priority      VARCHAR(50) DEFAULT 'medium',
-      due_date      DATE,
-      created_at    TIMESTAMP DEFAULT NOW()
+      status        TEXT DEFAULT 'Pending',
+      priority      TEXT DEFAULT 'Medium',
+      due_date      TEXT,
+      created_at    TEXT DEFAULT (datetime('now'))
     );
   `);
 
-  await db.query(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS salary_records (
-      id          SERIAL PRIMARY KEY,
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id     INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      month       VARCHAR(7) NOT NULL,
-      base_salary DECIMAL(10,2) DEFAULT 0,
-      bonus       DECIMAL(10,2) DEFAULT 0,
-      deduction   DECIMAL(10,2) DEFAULT 0,
-      net_salary  DECIMAL(10,2) DEFAULT 0,
-      status      VARCHAR(50) DEFAULT 'pending',
-      created_at  TIMESTAMP DEFAULT NOW(),
+      month       TEXT NOT NULL,
+      base_salary REAL DEFAULT 0,
+      bonus       REAL DEFAULT 0,
+      deduction   REAL DEFAULT 0,
+      net_salary  REAL DEFAULT 0,
+      status      TEXT DEFAULT 'Pending',
+      created_at  TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, month)
     );
   `);
 
-  console.log('✅ All tables created successfully');
-  process.exit(0);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS penalties (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      type       TEXT DEFAULT 'MANUAL',
+      points     INTEGER NOT NULL DEFAULT -1,
+      reason     TEXT NOT NULL,
+      month      TEXT NOT NULL,
+      date       TEXT NOT NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id      INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      type         TEXT DEFAULT 'info',
+      title        TEXT,
+      message      TEXT,
+      is_read      INTEGER DEFAULT 0,
+      related_id   INTEGER,
+      related_type TEXT,
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  console.log('✅ All tables created successfully (SQLite)');
 }
 
-init().catch(err => { console.error(err); process.exit(1); });
+try {
+  init();
+  process.exit(0);
+} catch (err) {
+  console.error('❌ Init error:', err.message);
+  process.exit(1);
+}

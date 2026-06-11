@@ -7,15 +7,7 @@ import { Trash2, Crown, Users, ChevronDown, ChevronUp, AlertCircle, X } from 'lu
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 
-// ── Load account roles ────────────────────────────────────────────────────────
-const loadAccountRoles = () => {
-  try {
-    const accounts = JSON.parse(localStorage.getItem('sf_accounts')) || [];
-    const map = {};
-    accounts.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
-    return map;
-  } catch { return {}; }
-};
+
 
 // ── Employee detail modal ─────────────────────────────────────────────────────
 function EmployeeDetailModal({ employee, onClose }) {
@@ -186,45 +178,42 @@ export default function Departments() {
   const [confirmId, setConfirmId] = useState(null);
 
   const role = auth?.role;
-  const canManage = role === 'admin' || role === 'admin';
-
-  const accountRoles = useMemo(() => loadAccountRoles(), []);
-
-  const enriched = useMemo(() =>
-    employees.map(e => ({
-      ...e,
-      accountRole: accountRoles[e.email?.toLowerCase()] ?? 'employee',
-    })),
-    [employees, accountRoles]
-  );
+  const canManage = role === 'admin';
 
   // Team Lead sees only their own department
   const visibleDepts = useMemo(() => {
     if (role === 'team_lead') {
-      const leadEmp = enriched.find(e => e.id === auth?.employeeId);
-      const dept = leadEmp?.department;
-      return dept ? departments.filter(d => d.name === dept) : [];
+      const deptId = auth?.departmentId;
+      if (!deptId) return [];
+      return departments.filter(d => d.id === deptId || String(d.id) === String(deptId));
     }
     return departments;
-  }, [departments, enriched, role, auth?.employeeId]);
+  }, [departments, role, auth?.departmentId]);
 
-  const getTeamLead = (deptName) =>
-    enriched.find(e => e.accountRole === 'team_lead' && e.department === deptName);
+  // accountRole backend dan keladi (employees state da saqlanadi)
+  const getTeamLead = (dept) =>
+    employees.find(e =>
+      e.accountRole === 'team_lead' &&
+      (e.departmentId === dept.id || String(e.departmentId) === String(dept.id))
+    );
 
-  const getDeptEmployees = (deptName) =>
-    enriched.filter(e => e.accountRole === 'employee' && e.department === deptName);
+  const getDeptEmployees = (dept) =>
+    employees.filter(e =>
+      e.accountRole === 'employee' &&
+      (e.departmentId === dept.id || String(e.departmentId) === String(dept.id))
+    );
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!input.trim()) { setError('Bo\'lim nomi kiritilishi shart'); return; }
-    const result = addDepartment(input.trim());
-    if (result?.error) { setError(t(`departments.${result.errorKey}`) || result.error); return; }
+    const result = await addDepartment(input.trim());
+    if (result?.error) { setError(t(`departments.${result.errorKey}`) || result.message || result.error); return; }
     setInput('');
     setError('');
   };
 
   const handleConfirmDelete = (dept) => setConfirmId(dept.id);
-  const handleDelete = (id) => { deleteDepartment(id); setConfirmId(null); };
+  const handleDelete = async (id) => { await deleteDepartment(id); setConfirmId(null); };
 
   return (
     <div className="space-y-6">
@@ -266,8 +255,8 @@ export default function Departments() {
             <DeptCard
               key={dept.id}
               dept={dept}
-              lead={getTeamLead(dept.name)}
-              deptEmps={getDeptEmployees(dept.name)}
+              lead={getTeamLead(dept)}
+              deptEmps={getDeptEmployees(dept)}
               canManage={canManage}
               onDelete={handleDelete}
               onConfirmDelete={handleConfirmDelete}

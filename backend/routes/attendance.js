@@ -1,9 +1,9 @@
 const router = require('express').Router();
-const db     = require('../db');
-const { protect } = require('../middleware/auth');
+const { query, inClause } = require('../db');
+const { protect, allow } = require('../middleware/auth');
 const scope  = require('../middleware/scopeFilter');
 
-const today = () => new Date().toISOString().split('T')[0];
+const today   = () => new Date().toISOString().split('T')[0];
 const nowHHMM = () => new Date().toTimeString().slice(0, 5);
 
 // GET /api/attendance
@@ -13,44 +13,28 @@ router.get('/', protect, scope, async (req, res) => {
     const ids = req.scopedIds;
     if (!ids.length) return res.json({ attendance: [] });
 
-    let where = 'WHERE a.user_id = ANY($1)';
-    const params = [ids];
+    const { clause, params } = inClause(ids);
+    let where = `WHERE a.user_id IN ${clause} AND u.role != 'admin'`;
+    const extraParams = [...params];
 
-    if (date) { where += ` AND a.date = $${params.push(date)}`; }
-    else if (month) { where += ` AND TO_CHAR(a.date, 'YYYY-MM') = $${params.push(month)}`; }
+    if (date) {
+      where += ` AND a.date = ?`;
+      extraParams.push(date);
+    } else if (month) {
+      where += ` AND substr(a.date, 1, 7) = ?`;
+      extraParams.push(month);
+    }
 
-    const { rows } = await db.query(
+    const { rows } = await query(
       `SELECT a.*, u.full_name, u.department_id, d.name AS department_name
        FROM attendance a
        JOIN users u ON a.user_id = u.id
        LEFT JOIN departments d ON u.department_id = d.id
        ${where}
        ORDER BY a.date DESC, u.full_name`,
-      params
+      extraParams
     );
     res.json({ attendance: rows });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// GET /api/attendance/summary
-router.get('/summary', protect, scope, async (req, res) => {
-  try {
-    const ids = req.scopedIds;
-    const { rows } = await db.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE status = 'keldi')      AS keldi,
-         COUNT(*) FILTER (WHERE status = 'kelmadi')    AS kelmadi,
-         COUNT(*) FILTER (WHERE status = 'kech_keldi') AS kech_keldi,
-         COUNT(*) AS total
-       FROM attendance
-       WHERE user_id = ANY($1) AND date = $2`,
-      [ids, today()]
-    );
-    const s = rows[0];
-    const pct = s.total > 0 ? Math.round(((+s.keldi + +s.kech_keldi) / +s.total) * 100) : 0;
-    res.json({ ...s, percentage: pct });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -59,16 +43,30 @@ router.get('/summary', protect, scope, async (req, res) => {
 // POST /api/attendance/checkin
 router.post('/checkin', protect, async (req, res) => {
   try {
-    const time = nowHHMM();
+    const time   = nowHHMM();
+    const date   = today();
     const [h, m] = time.split(':').map(Number);
     const status = (h > 9 || (h === 9 && m > 0)) ? 'kech_keldi' : 'keldi';
 
-    const { rows } = await db.query(
-      `INSERT INTO attendance (user_id, date, check_in, status)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (user_id, date) DO UPDATE SET check_in = $3, status = $4
-       RETURNING *`,
-      [req.user.id, today(), time, status]
+    // Upsert
+    const existing = await query(
+      `SELECT id FROM attendance WHERE user_id = $1 AND date = $2`,
+      [req.user.id, date]
+    );
+    if (existing.rows.length) {
+      await query(
+        `UPDATE attendance SET check_in = $1, status = $2 WHERE user_id = $3 AND date = $4`,
+        [time, status, req.user.id, date]
+      );
+    } else {
+      await query(
+        `INSERT INTO attendance (user_id, date, check_in, status) VALUES ($1, $2, $3, $4)`,
+        [req.user.id, date, time, status]
+      );
+    }
+    const { rows } = await query(
+      `SELECT * FROM attendance WHERE user_id = $1 AND date = $2`,
+      [req.user.id, date]
     );
     res.json({ attendance: rows[0] });
   } catch (err) {
@@ -80,9 +78,10 @@ router.post('/checkin', protect, async (req, res) => {
 router.post('/checkout', protect, async (req, res) => {
   try {
     const time = nowHHMM();
-    const { rows: existing } = await db.query(
+    const date = today();
+    const { rows: existing } = await query(
       `SELECT * FROM attendance WHERE user_id = $1 AND date = $2`,
-      [req.user.id, today()]
+      [req.user.id, date]
     );
     if (!existing.length || !existing[0].check_in)
       return res.status(400).json({ message: 'Avval kirish qayd etilmagan' });
@@ -91,10 +90,13 @@ router.post('/checkout', protect, async (req, res) => {
     const [oh, om] = time.split(':').map(Number);
     const workHours = Math.round(((oh * 60 + om) - (ih * 60 + im)) / 60 * 100) / 100;
 
-    const { rows } = await db.query(
-      `UPDATE attendance SET check_out = $1, work_hours = $2
-       WHERE user_id = $3 AND date = $4 RETURNING *`,
-      [time, workHours, req.user.id, today()]
+    await query(
+      `UPDATE attendance SET check_out = $1, work_hours = $2 WHERE user_id = $3 AND date = $4`,
+      [time, workHours, req.user.id, date]
+    );
+    const { rows } = await query(
+      `SELECT * FROM attendance WHERE user_id = $1 AND date = $2`,
+      [req.user.id, date]
     );
     res.json({ attendance: rows[0] });
   } catch (err) {
@@ -102,18 +104,19 @@ router.post('/checkout', protect, async (req, res) => {
   }
 });
 
-// PATCH /api/attendance/:id (admin/team_lead)
-router.patch('/:id', protect, async (req, res) => {
+// PATCH /api/attendance/:id
+router.patch('/:id', protect, allow('admin', 'team_lead'), async (req, res) => {
   try {
     const { status, check_in, check_out } = req.body;
-    const { rows } = await db.query(
+    await query(
       `UPDATE attendance SET
          status    = COALESCE($1, status),
          check_in  = COALESCE($2, check_in),
          check_out = COALESCE($3, check_out)
-       WHERE id = $4 RETURNING *`,
+       WHERE id = $4`,
       [status, check_in, check_out, req.params.id]
     );
+    const { rows } = await query(`SELECT * FROM attendance WHERE id = $1`, [req.params.id]);
     res.json({ attendance: rows[0] });
   } catch (err) {
     res.status(400).json({ message: err.message });

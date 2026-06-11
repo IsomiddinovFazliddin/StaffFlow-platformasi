@@ -54,10 +54,13 @@ export default function MyTasks() {
   const { tasks, updateTask } = useApp();
   const { auth } = useAuth();
 
-  const myTasks = tasks.filter((t) => t.assigneeId === auth?.employeeId);
+  const myId    = auth?.id || auth?.employeeId;
+  const myTasks = tasks.filter((t) =>
+    t.assigneeId === myId || String(t.assigneeId) === String(myId)
+  );
 
-  const handleStatusChange = (id, newStatus) => {
-    updateTask(id, { status: newStatus });
+  const handleStatusChange = async (id, newStatus) => {
+    try { await updateTask(id, { status: newStatus }); } catch { /* ignore */ }
   };
 
   const statColors = {

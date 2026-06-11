@@ -194,42 +194,37 @@ export default function Attendance() {
   };
 
   // Build visible records based on role
+  // Admin hech qachon davomat jadvalida ko'rinmaydi
+  const isNotAdmin = (a) => {
+    const emp = employees.find(e => e.id === a.employeeId || String(e.id) === String(a.employeeId));
+    return !emp || (emp.accountRole !== 'admin' && emp.role !== 'admin');
+  };
+
   const records = (() => {
     const role = auth?.role;
     if (role === 'employee') {
-      // Employee sees only own records
-      return attendance.filter(a => a.employeeId === auth?.employeeId);
+      return attendance.filter(a => a.employeeId === auth?.employeeId || String(a.employeeId) === String(auth?.id));
     }
     if (role === 'team_lead') {
-      // Team lead sees only employees in their department
-      try {
-        const accountRoles = (() => {
-          const accs = JSON.parse(localStorage.getItem('sf_accounts')) || [];
-          const map = {};
-          accs.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
-          return map;
-        })();
-        const leadEmp = employees.find(e => e.id === auth?.employeeId);
-        const leadDept = leadEmp?.department;
-        const deptEmpIds = new Set(
-          employees
-            .filter(e => {
-              const r = accountRoles[e.email?.toLowerCase()] ?? 'employee';
-              return r === 'employee' && (!leadDept || e.department === leadDept);
-            })
-            .map(e => e.id)
-        );
-        // Also include team lead themselves
-        if (auth?.employeeId) deptEmpIds.add(auth.employeeId);
-        return attendance.filter(a => deptEmpIds.has(a.employeeId));
-      } catch { return attendance; }
+      const leadEmp  = employees.find(e => e.id === auth?.employeeId || e.id === auth?.id);
+      const leadDept = leadEmp?.department;
+      const deptEmpIds = new Set(
+        employees
+          .filter(e => e.accountRole !== 'admin' && e.role !== 'admin' &&
+                       (!leadDept || e.department === leadDept))
+          .map(e => e.id)
+      );
+      if (auth?.employeeId) deptEmpIds.add(auth.employeeId);
+      if (auth?.id) deptEmpIds.add(auth.id);
+      return attendance.filter(a => deptEmpIds.has(a.employeeId));
     }
-    // Admin sees all
-    return attendance;
+    // Admin sees all — but NOT admin users
+    return attendance.filter(isNotAdmin);
   })();
-  const presentCount = attendance.filter(a => a.status === 'Present').length;
-  const lateCount    = attendance.filter(a => a.late).length;
-  const rate         = attendance.length ? Math.round((presentCount / attendance.length) * 100) : 0;
+
+  const presentCount = records.filter(a => a.status === 'Present').length;
+  const lateCount    = records.filter(a => a.late).length;
+  const rate         = records.length ? Math.round((presentCount / records.length) * 100) : 0;
   const today        = new Date().toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (

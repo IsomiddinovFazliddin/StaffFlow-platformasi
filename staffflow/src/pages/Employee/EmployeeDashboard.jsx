@@ -7,9 +7,17 @@ export default function EmployeeDashboard() {
   const { auth } = useAuth();
   const { tasks, attendance, salaries } = useApp();
 
-  const myTasks      = tasks.filter(t => t.assigneeId === auth?.employeeId);
-  const myAttendance = attendance.find(a => a.employeeId === auth?.employeeId);
-  const mySalary     = salaries.find(s => s.employeeId === auth?.employeeId);
+  // Backend: auth.id === user's DB id
+  const myId = auth?.id || auth?.employeeId;
+
+  const myTasks      = tasks.filter(t => t.assigneeId === myId || String(t.assigneeId) === String(myId));
+  const today        = new Date().toISOString().split('T')[0];
+  const myAttendance = attendance.find(a =>
+    (a.employeeId === myId || String(a.employeeId) === String(myId)) && a.date === today
+  );
+  const mySalary = salaries.find(s =>
+    s.employeeId === myId || String(s.employeeId) === String(myId)
+  );
 
   const doneTasks    = myTasks.filter(t => t.status === 'Done').length;
   const pendingTasks = myTasks.filter(t => t.status !== 'Done').length;

@@ -30,11 +30,12 @@ export default function Tasks() {
   const canDelete  = can(PERMISSIONS.DELETE_TASK);
   const canViewAll = can(PERMISSIONS.VIEW_ALL_TASKS);
 
-  const cycleStatus = (id) => {
+  const cycleStatus = async (id) => {
     if (!can(PERMISSIONS.UPDATE_TASK)) return;
     const task = tasks.find(t => t.id === id);
+    if (!task) return;
     const next = STATUS_ORDER[(STATUS_ORDER.indexOf(task.status) + 1) % STATUS_ORDER.length];
-    updateTask(id, { status: next });
+    try { await updateTask(id, { status: next }); } catch { /* ignore */ }
   };
 
   const visibleTasks = tasks.filter(t => {
@@ -167,7 +168,7 @@ export default function Tasks() {
               <div className="flex gap-1.5">
                 {confirmId === task.id ? (
                   <>
-                    <button onClick={() => { deleteTask(task.id); setConfirmId(null); }}
+                    <button onClick={async () => { try { await deleteTask(task.id); } catch {} setConfirmId(null); }}
                       className="text-xs px-3 py-1 bg-red-100 text-red-600 rounded-lg font-medium">Ha</button>
                     <button onClick={() => setConfirmId(null)}
                       className="text-xs px-3 py-1 bg-gray-100 text-gray-600 rounded-lg font-medium">Yo'q</button>
@@ -235,7 +236,7 @@ export default function Tasks() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500">O'chirilsinmi?</span>
                         <Button variant="danger" className="!py-1 !px-2 text-xs"
-                          onClick={() => { deleteTask(task.id); setConfirmId(null); }}>Ha</Button>
+                          onClick={async () => { try { await deleteTask(task.id); } catch {} setConfirmId(null); }}>Ha</Button>
                         <Button variant="secondary" className="!py-1 !px-2 text-xs"
                           onClick={() => setConfirmId(null)}>Yo'q</Button>
                       </div>

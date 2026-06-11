@@ -7,7 +7,6 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import EmployeeModal from './EmployeeModal';
 
-// ── Role badge ────────────────────────────────────────────────────────────────
 const ROLE_META = {
   admin:      { label: 'Admin',      cls: 'bg-red-100 text-red-700' },
   hr_manager: { label: 'HR Manager', cls: 'bg-blue-100 text-blue-700' },
@@ -24,18 +23,7 @@ function RoleBadge({ role }) {
   );
 }
 
-// ── Load account roles from sf_accounts ──────────────────────────────────────
-const loadAccountRoles = () => {
-  try {
-    const accounts = JSON.parse(localStorage.getItem('sf_accounts')) || [];
-    const map = {};
-    accounts.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
-    return map;
-  } catch { return {}; }
-};
-
-// ── Delete Confirm Modal ──────────────────────────────────────────────────────
-function DeleteConfirmModal({ employee, onConfirm, onCancel }) {
+function DeleteConfirmModal({ employee, onConfirm, onCancel, loading }) {
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={e => e.target === e.currentTarget && onCancel()}>
@@ -50,11 +38,13 @@ function DeleteConfirmModal({ employee, onConfirm, onCancel }) {
           <span className="font-semibold text-gray-800">{employee.name}</span> o'chirilmoqda.
         </p>
         <p className="text-sm text-gray-500 mb-6">
-          Ushbu xodimga tegishli barcha ma'lumotlar (profil, maosh, davomat) o'chib ketadi. Ishonchingiz komilmi?
+          Ushbu xodimga tegishli barcha ma'lumotlar o'chib ketadi. Ishonchingiz komilmi?
         </p>
         <div className="flex gap-3">
-          <Button variant="secondary" className="flex-1" onClick={onCancel}>Bekor qilish</Button>
-          <Button variant="danger"    className="flex-1" onClick={onConfirm}>Ha, o'chirish</Button>
+          <Button variant="secondary" className="flex-1" onClick={onCancel} disabled={loading}>Bekor qilish</Button>
+          <Button variant="danger"    className="flex-1" onClick={onConfirm} disabled={loading}>
+            {loading ? 'O\'chirilmoqda...' : 'Ha, o\'chirish'}
+          </Button>
         </div>
       </div>
     </div>
@@ -73,44 +63,34 @@ function Toast({ message, onDone }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 export default function Employees() {
   const t = useTranslate();
-  const { employees, deleteEmployee } = useApp();
+  const { employees, deleteEmployee, loading } = useApp();
   const { auth } = useAuth();
 
   const [modalOpen,    setModalOpen]    = useState(false);
   const [editTarget,   setEditTarget]   = useState(null);
   const [search,       setSearch]       = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting,     setDeleting]     = useState(false);
   const [toast,        setToast]        = useState(false);
 
-  // Map email → accountRole from sf_accounts
-  const accountRoles = useMemo(() => loadAccountRoles(), [toast, modalOpen]);
-
-  // Enrich employees with their system role
-  const enriched = useMemo(() =>
-    employees.map(emp => ({
-      ...emp,
-      accountRole: accountRoles[emp.email?.toLowerCase()] ?? 'employee',
-    })),
-    [employees, accountRoles]
-  );
-
-  // Role-based visibility filter
+  // Role-based visibility filter — admin hech qachon ko'rinmaydi
   const visibleEmployees = useMemo(() => {
     const role = auth?.role;
-    if (role === 'admin') return enriched; // Admin sees ALL employees
+    // Admin hech qachon xodim ro'yxatida ko'rinmaydi
+    const nonAdmins = employees.filter(e => e.accountRole !== 'admin' && e.role !== 'admin');
+    if (role === 'admin') return nonAdmins;
     if (role === 'team_lead') {
-      const leadEmp = enriched.find(e => e.id === auth?.employeeId);
-      const dept = leadEmp?.department;
-      return enriched.filter(e => e.accountRole === 'employee' && (!dept || e.department === dept));
+      const leadEmp = nonAdmins.find(e => e.id === auth?.employeeId || e.id === auth?.id);
+      const dept = leadEmp?.department || auth?.department;
+      return nonAdmins.filter(e => e.accountRole === 'employee' && (!dept || e.department === dept));
     }
-    return enriched.filter(e => e.id === auth?.employeeId);
-  }, [enriched, auth]);
+    return nonAdmins.filter(e => e.id === auth?.id);
+  }, [employees, auth]);
 
   const filtered = visibleEmployees.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
+    (e.name || '').toLowerCase().includes(search.toLowerCase()) ||
     (e.role || '').toLowerCase().includes(search.toLowerCase()) ||
     (e.department || '').toLowerCase().includes(search.toLowerCase())
   );
@@ -118,16 +98,26 @@ export default function Employees() {
   const openAdd  = () => { setEditTarget(null); setModalOpen(true); };
   const openEdit = (emp) => { setEditTarget(emp); setModalOpen(true); };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
-    deleteEmployee(deleteTarget.id, deleteTarget.email);
+    setDeleting(true);
+    try {
+      await deleteEmployee(deleteTarget.id);
+      setToast(true);
+    } catch { /* ignore */ }
+    setDeleting(false);
     setDeleteTarget(null);
-    setToast(true);
   };
 
-  // Department display: only show for employees
-  const deptDisplay = (emp) =>
-    ['admin', 'admin', 'team_lead'].includes(emp.accountRole) ? '—' : (emp.department || '—');
+  const deptDisplay = (emp) => emp.department || '—';
+
+  if (loading && employees.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -139,7 +129,7 @@ export default function Employees() {
             {t('employees.subtitle', { filtered: filtered.length, total: visibleEmployees.length })}
           </p>
         </div>
-        {['admin', 'admin'].includes(auth?.role) && (
+        {auth?.role === 'admin' && (
           <Button onClick={openAdd}>{t('employees.addEmployee')}</Button>
         )}
       </div>
@@ -182,7 +172,7 @@ export default function Employees() {
               )}
               <span className="text-xs text-gray-500 ml-auto">${emp.salary?.toLocaleString() ?? '—'}</span>
             </div>
-            {['admin', 'admin'].includes(auth?.role) && (
+            {auth?.role === 'admin' && (
               <div className="flex gap-2 pt-1">
                 <Button variant="secondary" className="flex-1 !py-1.5 text-xs" onClick={() => openEdit(emp)}>
                   <PencilLine size={13} className="inline mr-1" strokeWidth={2} />{t('employees.edit')}
@@ -203,7 +193,7 @@ export default function Employees() {
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
                 {['Xodim', 'Rol', "Bo'lim", 'Maosh', 'Holat',
-                  ['admin','admin'].includes(auth?.role) ? 'Amallar' : ''].filter(Boolean).map(h => (
+                  auth?.role === 'admin' ? 'Amallar' : ''].filter(Boolean).map(h => (
                   <th key={h} className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -233,7 +223,7 @@ export default function Employees() {
                   <td className="px-6 py-4 text-gray-600">{deptDisplay(emp)}</td>
                   <td className="px-6 py-4 font-medium text-gray-800">${emp.salary?.toLocaleString() ?? '—'}</td>
                   <td className="px-6 py-4"><Badge label={emp.status} /></td>
-                  {['admin', 'admin'].includes(auth?.role) && (
+                  {auth?.role === 'admin' && (
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => openEdit(emp)} title="Tahrirlash"
@@ -266,6 +256,7 @@ export default function Employees() {
           employee={deleteTarget}
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
+          loading={deleting}
         />
       )}
 

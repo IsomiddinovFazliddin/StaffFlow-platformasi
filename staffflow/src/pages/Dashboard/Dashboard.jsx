@@ -272,22 +272,14 @@ function HRDashboard({ employees, attendance }) {
 // ── Team Lead dashboard ───────────────────────────────────────────────────────
 function TeamLeadDashboard({ tasks, employees, auth }) {
   // Team lead sees only employees (not other leads/managers) in their department
-  const leadEmp  = employees.find(e => e.id === auth?.employeeId);
-  const leadDept = leadEmp?.department;
-
-  // Load account roles to filter out non-employees
-  const accountRoles = (() => {
-    try {
-      const accounts = JSON.parse(localStorage.getItem('sf_accounts')) || [];
-      const map = {};
-      accounts.forEach(a => { map[a.email?.toLowerCase()] = a.role; });
-      return map;
-    } catch { return {}; }
-  })();
+  const leadDept = auth?.department || auth?.departmentId;
 
   const myTeam = employees.filter(e => {
-    const empRole = accountRoles[e.email?.toLowerCase()] ?? 'employee';
-    return empRole === 'employee' && (!leadDept || e.department === leadDept);
+    const isEmployee = e.accountRole === 'employee' || e.role === 'employee';
+    const inDept = leadDept
+      ? (e.departmentId === auth?.departmentId || String(e.departmentId) === String(auth?.departmentId) || e.department === auth?.department)
+      : true;
+    return isEmployee && inDept;
   });
 
   const allTasks   = tasks;

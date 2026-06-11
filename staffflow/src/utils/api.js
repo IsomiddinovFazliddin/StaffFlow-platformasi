@@ -1,18 +1,12 @@
 /**
  * api.js — Centralized API client for StaffFlow backend
- *
- * Usage:
- *   import api from '../utils/api';
- *   const { user } = await api.auth.me();
- *
- * When backend is ready, set VITE_API_URL in .env:
- *   VITE_API_URL=http://localhost:5000
+ * All requests include Authorization: Bearer {token} automatically.
  */
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BASE = import.meta.env.VITE_API_URL || '';
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
-const getToken = () => {
+export const getToken = () => {
   try { return JSON.parse(localStorage.getItem('sf_auth'))?.token || null; }
   catch { return null; }
 };
@@ -23,10 +17,14 @@ async function request(method, path, body) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE}/api${path}`, {
+  // BASE bo'sh bo'lsa — Vite proxy orqali /api ga yuboradi (CORS muammosi yo'q)
+  // BASE to'ldirilgan bo'lsa — to'g'ridan-to'g'ri backend ga yuboradi
+  const url = BASE ? `${BASE}/api${path}` : `/api${path}`;
+
+  const res = await fetch(url, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   const data = await res.json().catch(() => ({}));
@@ -36,6 +34,7 @@ async function request(method, path, body) {
 
 const get    = (path)        => request('GET',    path);
 const post   = (path, body)  => request('POST',   path, body);
+const put    = (path, body)  => request('PUT',    path, body);
 const patch  = (path, body)  => request('PATCH',  path, body);
 const del    = (path)        => request('DELETE', path);
 
@@ -45,13 +44,15 @@ const api = {
   // Auth
   auth: {
     login:          (email, password) => post('/auth/login', { email, password }),
+    register:       (data)            => post('/auth/register', data),
+    google:         (data)            => post('/auth/google', data),
     me:             ()                => get('/auth/me'),
     updateMe:       (data)            => patch('/auth/me', data),
     changePassword: (currentPassword, newPassword) =>
       patch('/auth/change-password', { currentPassword, newPassword }),
   },
 
-  // Users (Admin/HR)
+  // Users / Employees
   users: {
     list:       (params = {}) => get('/users?' + new URLSearchParams(params)),
     get:        (id)          => get(`/users/${id}`),
@@ -71,10 +72,10 @@ const api = {
 
   // Tasks
   tasks: {
-    list:   ()         => get('/tasks'),
-    create: (data)     => post('/tasks', data),
-    update: (id, data) => patch(`/tasks/${id}`, data),
-    delete: (id)       => del(`/tasks/${id}`),
+    list:   (params = {}) => get('/tasks?' + new URLSearchParams(params)),
+    create: (data)        => post('/tasks', data),
+    update: (id, data)    => patch(`/tasks/${id}`, data),
+    delete: (id)          => del(`/tasks/${id}`),
   },
 
   // Attendance
@@ -87,9 +88,30 @@ const api = {
 
   // Salary
   salary: {
-    list:   ()         => get('/salary'),
-    create: (data)     => post('/salary', data),
-    update: (id, data) => patch(`/salary/${id}`, data),
+    list:   (params = {}) => get('/salary?' + new URLSearchParams(params)),
+    create: (data)        => post('/salary', data),
+    update: (id, data)    => patch(`/salary/${id}`, data),
+  },
+
+  // Penalties
+  penalties: {
+    list:   (params = {}) => get('/penalties?' + new URLSearchParams(params)),
+    create: (data)        => post('/penalties', data),
+    update: (id, data)    => patch(`/penalties/${id}`, data),
+    delete: (id)          => del(`/penalties/${id}`),
+  },
+
+  // Approvals
+  approvals: {
+    pending:      ()         => get('/approvals/pending'),
+    pendingCount: ()         => get('/approvals/pending-count'),
+    approve:      (id, data) => put(`/approvals/${id}/approve`, data),
+    reject:       (id)       => put(`/approvals/${id}/reject`),
+  },
+
+  // Analytics
+  analytics: {
+    summary: () => get('/analytics'),
   },
 
   // Notifications
@@ -97,22 +119,6 @@ const api = {
     list:    ()   => get('/notifications'),
     read:    (id) => patch(`/notifications/${id}/read`),
     readAll: ()   => patch('/notifications/read-all'),
-  },
-
-  // Vacancies
-  vacancies: {
-    list:   ()         => get('/vacancies'),
-    create: (data)     => post('/vacancies', data),
-    update: (id, data) => patch(`/vacancies/${id}`, data),
-    delete: (id)       => del(`/vacancies/${id}`),
-  },
-
-  // Interviews
-  interviews: {
-    list:   ()         => get('/interviews'),
-    create: (data)     => post('/interviews', data),
-    update: (id, data) => patch(`/interviews/${id}`, data),
-    delete: (id)       => del(`/interviews/${id}`),
   },
 };
 

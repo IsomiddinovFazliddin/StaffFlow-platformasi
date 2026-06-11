@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
-import { PERMISSIONS, salaryHistory } from '../../utils/mockData';
+import { PERMISSIONS } from '../../utils/mockData';
 import Card from '../../components/ui/Card';
 import SalaryModal from './SalaryModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -16,10 +16,18 @@ export default function Salary() {
   const canManage  = can(PERMISSIONS.MANAGE_SALARY);
   const canViewAll = can(PERMISSIONS.VIEW_ALL_SALARY);
 
-  const records      = canViewAll ? salaries : salaries.filter(s => s.employeeId === auth?.employeeId);
+  const records = canViewAll
+    ? salaries.filter(s => {
+        const emp = employees.find(e => e.id === s.employeeId || String(e.id) === String(s.employeeId));
+        return !emp || (emp.accountRole !== 'admin' && emp.role !== 'admin');
+      })
+    : salaries.filter(s => s.employeeId === auth?.employeeId || String(s.employeeId) === String(auth?.id));
   const totalPayroll = salaries.reduce((sum, s) => sum + s.net, 0);
 
-  const handleSave = (id, data) => { updateSalary(id, data); setEditRecord(null); };
+  const handleSave = async (id, data) => {
+    try { await updateSalary(id, data); } catch { /* ignore */ }
+    setEditRecord(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -38,14 +46,14 @@ export default function Salary() {
       </div>
 
       {/* Chart */}
-      {canViewAll && (
+      {canViewAll && salaries.length > 0 && (
         <Card>
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">Oylik ish haqi tarixi</h2>
+          <h2 className="text-sm font-semibold text-gray-700 mb-4">Oylik ish haqi (joriy)</h2>
           <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={salaryHistory} barSize={40}>
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+            <BarChart data={salaries.slice(0, 7).map(s => ({ name: s.name?.split(' ')[0], total: s.net }))} barSize={40}>
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip formatter={v => [fmt(v), 'Jami']} />
+              <Tooltip formatter={v => [fmt(v), 'Sof maosh']} />
               <Bar dataKey="total" fill="#6366f1" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

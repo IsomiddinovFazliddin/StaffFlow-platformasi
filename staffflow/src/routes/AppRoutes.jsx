@@ -17,10 +17,7 @@ import Salary            from '../pages/Salary/Salary';
 import Settings          from '../pages/Settings/Settings';
 import Profile           from '../pages/Profile/Profile';
 import ActivityLog       from '../pages/ActivityLog/ActivityLog';
-import Vacancies         from '../pages/Vacancies/Vacancies';
-import Interviews        from '../pages/Interviews/Interviews';
 import Penalties         from '../pages/Penalties/Penalties';
-import Analytics         from '../pages/Analytics/Analytics';
 import Hisobotlar        from '../pages/Hisobotlar/index';
 import PendingApprovals  from '../pages/PendingApprovals/PendingApprovals';
 import PendingApproval   from '../pages/Login/PendingApproval';
@@ -33,11 +30,11 @@ import MySalary          from '../pages/Employee/MySalary';
 import MyPenalties       from '../pages/Employee/MyPenalties';
 import MyTeam            from '../pages/Employee/MyTeam';
 
-const ADMIN_ROLES = ['admin', 'admin', 'team_lead'];
+const ADMIN_ROLES = ['admin', 'team_lead'];
 
 function RootRedirect() {
   const { auth } = useAuth();
-  if (!auth) return <Navigate to="/login" replace />;
+  if (!auth || !auth.token) return <Navigate to="/login" replace />;
   return <Navigate to={ADMIN_ROLES.includes(auth.role) ? '/admin' : '/employee'} replace />;
 }
 
@@ -50,7 +47,7 @@ export default function AppRoutes() {
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="/"             element={<RootRedirect />} />
 
-      {/* ── Admin-level routes (admin, hr_manager, team_lead) ── */}
+      {/* ── Admin-level routes ── */}
       <Route element={<ProtectedRoute allowedRole="admin-level" />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index                element={<Dashboard />} />
@@ -60,10 +57,7 @@ export default function AppRoutes() {
           <Route path="attendance"    element={<Attendance />} />
           <Route path="salary"        element={<Salary />} />
           <Route path="activity"      element={<ActivityLog />} />
-          <Route path="vacancies"     element={<Vacancies />} />
-          <Route path="interviews"    element={<Interviews />} />
           <Route path="penalties"     element={<Penalties />} />
-          <Route path="analytics"     element={<Analytics />} />
           <Route path="hisobotlar"    element={<Hisobotlar />} />
           <Route path="pending"       element={<PendingApprovals />} />
           <Route path="settings"      element={<Settings />} />

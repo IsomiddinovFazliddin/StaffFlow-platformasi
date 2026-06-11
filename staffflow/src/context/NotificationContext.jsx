@@ -1,85 +1,123 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { getNotificationsForRole, ALL_NOTIFICATIONS, NOTIF_TYPE } from '../utils/notifications';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { notificationBus } from '../utils/notificationBus';
 
 const NotificationContext = createContext(null);
 
-// Simulated "real-time" new notifications per role
-const REALTIME_POOL = {
-  admin: [
-    { type: NOTIF_TYPE.SUCCESS, title: 'Yangi xodim ro\'yxatdan o\'tdi', message: 'Yangi xodim tizimga qo\'shildi.' },
-    { type: NOTIF_TYPE.INFO,    title: 'Hisobot tayyor',                  message: 'Mart oyi hisoboti yaratildi.' },
-  ],
-  hr_manager: [
-    { type: NOTIF_TYPE.WARNING, title: 'Kech kelish',                    message: 'Bugun 2 xodim kech keldi.' },
-    { type: NOTIF_TYPE.INFO,    title: 'Intervyu eslatmasi',              message: 'Keyingi intervyu 30 daqiqadan so\'ng.' },
-  ],
-  team_lead: [
-    { type: NOTIF_TYPE.WARNING, title: 'Vazifa muddati',                 message: 'Bitta vazifa muddati bugun tugaydi.' },
-    { type: NOTIF_TYPE.SUCCESS, title: 'Vazifa bajarildi',               message: 'Jamoa a\'zosi vazifani yakunladi.' },
-  ],
-  employee: [
-    { type: NOTIF_TYPE.INFO,    title: 'Yangi vazifa',                   message: 'Sizga yangi vazifa tayinlandi.' },
-    { type: NOTIF_TYPE.WARNING, title: 'Muddat eslatmasi',               message: 'Vazifa muddati yaqinlashmoqda.' },
-  ],
+export const NOTIF_TYPE = {
+  INFO:    'info',
+  SUCCESS: 'success',
+  WARNING: 'warning',
+  ERROR:   'error',
+};
+
+const LS_KEY = 'sf_notifications';
+
+const loadAll = () => {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch { return []; }
+};
+
+const saveAll = (list) => {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 200))); }
+  catch { /* ignore */ }
 };
 
 export function NotificationProvider({ children }) {
   const { auth } = useAuth();
-  const [notifications, setNotifications] = useState([]);
+  const [all, setAll]     = useState(() => loadAll());
   const [toast, setToast] = useState(null);
-  const poolIndexRef = useRef(0);
 
-  // Load role-based notifications when auth changes
+  // Reload when user changes
   useEffect(() => {
-    if (auth?.role) {
-      setNotifications(getNotificationsForRole(auth.role));
-      poolIndexRef.current = 0;
-    } else {
-      setNotifications([]);
-    }
-  }, [auth?.role]);
+    setAll(loadAll());
+  }, [auth?.id]);
 
-  // Simulate real-time notification every 30 seconds
+  // Listen to bus events (from AppContext, AuthContext, etc.)
   useEffect(() => {
-    if (!auth?.role) return;
-    const pool = REALTIME_POOL[auth.role] ?? [];
-    if (pool.length === 0) return;
+    const unsub = notificationBus.subscribe((notif) => {
+      setAll(prev => {
+        const updated = [notif, ...prev];
+        saveAll(updated);
+        return updated;
+      });
+      // Show toast only if relevant to current user
+      const isForMe = (
+        !notif.userId ||
+        notif.userId === 'all' ||
+        notif.userId === auth?.id ||
+        (notif.userId === 'admin' && auth?.role === 'admin')
+      );
+      if (isForMe) {
+        setToast(notif);
+        setTimeout(() => setToast(null), 4000);
+      }
+    });
+    return unsub;
+  }, [auth?.id, auth?.role]);
 
-    const interval = setInterval(() => {
-      const item = pool[poolIndexRef.current % pool.length];
-      poolIndexRef.current += 1;
+  // Filter notifications for current user
+  const notifications = all.filter(n => {
+    if (!auth) return false;
+    if (n.userId === auth.id)                              return true;
+    if (n.userId === 'admin' && auth.role === 'admin')     return true;
+    if (n.userId === 'all')                                return true;
+    return false;
+  });
 
-      const newNotif = {
-        id: Date.now(),
-        roles: [auth.role],
-        type: item.type,
-        title: item.title,
-        message: item.message,
-        read: false,
-        createdAt: new Date().toISOString(),
-      };
+  // unreadCount — defined BEFORE it's used anywhere
+  const unreadCount = notifications.filter(n => !n.read).length;
 
-      setNotifications(prev => [newNotif, ...prev]);
-      setToast(newNotif);
-      setTimeout(() => setToast(null), 4000);
-    }, 30_000);
-
-    return () => clearInterval(interval);
-  }, [auth?.role]);
+  // Add notification programmatically (also available via bus)
+  const addNotification = useCallback(({ userId, type, title, message, relatedId, relatedType }) => {
+    const notif = {
+      id:          Date.now(),
+      userId:      userId ?? 'all',
+      type:        type ?? NOTIF_TYPE.INFO,
+      title,
+      message,
+      read:        false,
+      createdAt:   new Date().toISOString(),
+      relatedId:   relatedId ?? null,
+      relatedType: relatedType ?? null,
+    };
+    notificationBus.emit(notif);
+    return notif;
+  }, []);
 
   const markRead = useCallback((id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setAll(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, read: true } : n);
+      saveAll(updated);
+      return updated;
+    });
   }, []);
 
   const markAllRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }, []);
-
-  const unreadCount = notifications.filter(n => !n.read).length;
+    setAll(prev => {
+      const updated = prev.map(n => {
+        const isForMe = (
+          n.userId === auth?.id ||
+          n.userId === 'all' ||
+          (n.userId === 'admin' && auth?.role === 'admin')
+        );
+        return isForMe ? { ...n, read: true } : n;
+      });
+      saveAll(updated);
+      return updated;
+    });
+  }, [auth?.id, auth?.role]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, toast }}>
+    <NotificationContext.Provider value={{
+      notifications,
+      setNotifications: setAll,
+      unreadCount,
+      markRead,
+      markAllRead,
+      addNotification,
+      toast,
+    }}>
       {children}
     </NotificationContext.Provider>
   );

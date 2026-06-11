@@ -56,11 +56,11 @@ function PasswordModal({ onClose, theme }) {
 
   const toggleShow = (field) => setShow(s => ({ ...s, [field]: !s[field] }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (form.next !== form.confirm) { setMsg('Yangi parollar mos kelmadi'); return; }
     if (form.next.length < 6)       { setMsg('Parol kamida 6 ta belgi bo\'lishi kerak'); return; }
-    const result = changePassword(form.current, form.next);
+    const result = await changePassword(form.current, form.next);
     if (result.error) { setMsg(result.error); return; }
     setMsg('✅ Parol muvaffaqiyatli o\'zgartirildi');
     setTimeout(onClose, 1500);
@@ -182,19 +182,22 @@ export default function Profile() {
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     // 1. UserContext — avatar, companyName kabi qo'shimcha maydonlar
     updateProfile({ ...form, role: displayRole });
     // 2. AuthContext — Navbar darhol yangilanadi + localStorage sf_auth
     updateAuth({ name: form.name, email: form.email });
-    // 3. AppContext employees — sahifa yangilanganda ham saqlanadi
-    if (auth?.employeeId) {
-      updateEmployee(auth.employeeId, {
-        name:  form.name,
-        email: form.email,
-        phone: form.phone,
-      });
+    // 3. AppContext employees — backend ga yuborish
+    const empId = auth?.employeeId || auth?.id;
+    if (empId) {
+      try {
+        await updateEmployee(empId, {
+          name:  form.name,
+          email: form.email,
+          phone: form.phone,
+        });
+      } catch { /* ignore */ }
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
